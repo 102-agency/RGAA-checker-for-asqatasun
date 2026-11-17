@@ -27,7 +27,7 @@
     "test:all": "vitest run",
     "verify": "pnpm check-types && pnpm lint && pnpm test",
     "browser:install": "playwright install chromium",
-    "catalog": "uv run --with pypdf python -I scripts/build-catalog.py"
+    "catalog": "python3 -I scripts/build-catalog.py RGAA-v4.1.2.odt"
   },
   "dependencies": {
     "axe-core": "4.14.0",
