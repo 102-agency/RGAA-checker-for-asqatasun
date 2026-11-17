@@ -58,7 +58,7 @@ Le terminal affiche, par ordre d'importance :
    à valider, en erreur ou non testé.
 2. **Les taux** : taux du site au niveau des critères (taux RGAA officiel), taux moyen des
    pages, critères conformes / non conformes / non applicables / ouverts. Un taux est marqué
-   *provisoire* tant que des tests sont ouverts.
+   _provisoire_ tant que des tests sont ouverts.
 3. **Le tableau des pages** : état, taux, nombre de non-conformités, de tests à valider.
 4. **Les non-conformités**, regroupées par thématique et par critère. Pour chaque test en
    échec : l'intitulé officiel, chaque constat avec **l'élément fautif** (sélecteur CSS) et
@@ -73,32 +73,32 @@ Trois niveaux de détail : `--detail synthese`, `problemes` (défaut), `tout`.
 
 ### Fichiers produits (dans `./rgaa-report`, `--out` pour changer)
 
-| Fichier | Contenu |
-|---|---|
+| Fichier        | Contenu                                                                  |
+| -------------- | ------------------------------------------------------------------------ |
 | `rapport.html` | rapport complet, à ouvrir dans un navigateur (clair/sombre, sans script) |
-| `rapport.md` | le même, en Markdown (à joindre à un ticket ou à versionner) |
-| `rapport.json` | données brutes, relues par `report`, `pending` et `decide` |
-| `preuves/` | captures des éléments sur lesquels une question est posée |
+| `rapport.md`   | le même, en Markdown (à joindre à un ticket ou à versionner)             |
+| `rapport.json` | données brutes, relues par `report`, `pending` et `decide`               |
+| `preuves/`     | captures des éléments sur lesquels une question est posée                |
 
 ### Codes de sortie
 
-| Code | Sens |
-|---|---|
-| 0 | aucune non-conformité et aucun test ouvert |
-| 1 | non-conformité, page non auditée, test en erreur ou non testé (`--strict` : aussi des tests à valider) |
-| 2 | mauvaise utilisation : option, argument ou fichier invalide |
-| 3 | panne : navigateur impossible à lancer, erreur inattendue |
+| Code | Sens                                                                                                   |
+| ---- | ------------------------------------------------------------------------------------------------------ |
+| 0    | aucune non-conformité et aucun test ouvert                                                             |
+| 1    | non-conformité, page non auditée, test en erreur ou non testé (`--strict` : aussi des tests à valider) |
+| 2    | mauvaise utilisation : option, argument ou fichier invalide                                            |
+| 3    | panne : navigateur impossible à lancer, erreur inattendue                                              |
 
 ### Verdicts
 
-| Verdict | Sens |
-|---|---|
-| ✓ Conforme | le test a été vérifié et passe |
-| ✗ Non conforme | au moins un échec, détaillé avec l'élément fautif |
-| – Non applicable | la page n'a pas le contenu visé par le test |
-| ? À valider | le test dépend d'un jugement qui n'est pas encore enregistré |
-| ⚠ Erreur de l'outil | la vérification a planté : le résultat est inconnu |
-| · Non testé | aucune vérification automatique : à auditer à la main |
+| Verdict             | Sens                                                         |
+| ------------------- | ------------------------------------------------------------ |
+| ✓ Conforme          | le test a été vérifié et passe                               |
+| ✗ Non conforme      | au moins un échec, détaillé avec l'élément fautif            |
+| – Non applicable    | la page n'a pas le contenu visé par le test                  |
+| ? À valider         | le test dépend d'un jugement qui n'est pas encore enregistré |
+| ⚠ Erreur de l'outil | la vérification a planté : le résultat est inconnu           |
+| · Non testé         | aucune vérification automatique : à auditer à la main        |
 
 ### Fusion avec Asqatasun
 
