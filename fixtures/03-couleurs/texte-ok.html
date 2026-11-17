@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Textes contrastés</title>
+    <style>
+      body { margin: 0; padding: 16px; font: 16px/1.5 sans-serif; color: #222; background: #fff; }
+      .normal { color: #767676; } /* 4,54:1 */
+      .grand { font-size: 24px; color: #949494; } /* 3,03:1 : grand texte */
+      .gras { font-weight: 700; color: #595959; } /* gras < 18,5 px : 4,5:1 */
+      .gras-grand { font-size: 19px; font-weight: 700; color: #949494; } /* gras dès 18,5 px : 3:1 */
+      .oklch { color: oklch(0.4 0.05 250); background: oklch(0.97 0.01 90); }
+      .alpha { color: rgb(0 0 0 / 0.8); }
+      .estompe { opacity: 0.9; color: #333; }
+      .degrade { background: linear-gradient(90deg, #fff, #e8e8e8); color: #333; }
+      .sombre { background: #12253f; color: #f5f5f5; padding: 8px; }
+      .souligne { color: #333; text-decoration: underline; }
+      .sur-image { position: relative; background: url(bandes.png) 0 0 / 400px 120px; width: 400px; height: 120px; }
+      .sur-image::before { content: ''; position: absolute; inset: 0; background: rgb(0 0 0 / 0.85); }
+      .sur-image p { position: relative; margin: 0; padding: 40px 10px; color: #fff; }
+      button:disabled { color: #bbb; background: #eee; border: 1px solid #ccc; }
+      .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); color: #ddd; }
+      input { border: 1px solid #6b6b6b; color: #222; background: #fff; padding: 4px; }
+      input::placeholder { color: #6b6b6b; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Textes contrastés</h1>
+      <p class="normal">Texte normal à 4,54:1.</p>
+      <p class="grand">Grand texte à 3,03:1.</p>
+      <p class="gras">Texte gras de 16 px à 7:1.</p>
+      <p class="gras-grand">Texte gras de 19 px à 3,03:1.</p>
+      <p class="oklch">Couleurs en oklch, converties en sRGB par le navigateur.</p>
+      <p class="alpha">Texte noir à 80 % d’opacité sur blanc.</p>
+      <div class="estompe"><p>Texte dans un conteneur à 90 % d’opacité.</p></div>
+      <p class="degrade">Texte sur un dégradé clair.</p>
+      <p class="sombre">Texte clair sur fond foncé.</p>
+      <p class="souligne">Texte souligné de la même couleur.</p>
+      <div class="sur-image"><p>Texte blanc sur une image, sous un voile sombre.</p></div>
+      <p><button type="button" disabled>Bouton inactif au texte pâle</button></p>
+      <p class="sr">Texte réservé aux lecteurs d’écran, masqué visuellement.</p>
+      <p><input type="text" placeholder="Votre nom" aria-label="Votre nom" /></p>
+      <svg width="260" height="40" role="img" aria-label="Légende"><text x="5" y="25" fill="#333" font-size="16">Texte SVG foncé</text></svg>
+    </main>
+  </body>
+</html>

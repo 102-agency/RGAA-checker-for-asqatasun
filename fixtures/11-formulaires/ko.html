@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Formulaires fautifs</title>
+  <link rel="stylesheet" href="base.css">
+</head>
+<body>
+<main>
+  <h1>Formulaires fautifs</h1>
+  <!-- Ni <form> ni sonde : les défauts sont statiques. -->
+  <div role="form" aria-label="Formulaire fautif">
+
+    <!-- 11.1.1 : pas d'étiquette ; étiquette implicite ; placeholder seul ; étiquette vide -->
+    <input id="sans-etiquette" type="text" name="a">
+    <label>Quartier <input type="text" name="quartier"></label>
+    <input id="seul-placeholder" type="text" name="b" placeholder="Votre profession">
+    <label for="vide"></label><input id="vide" type="text" name="c">
+
+    <!-- 11.1.2 : for sans cible, for vers un div, id en double -->
+    <div class="sep"></div>
+    <label for="fantome">Libellé fantôme</label>
+    <label for="boite">Libellé de boîte</label><div id="boite"></div>
+    <label for="dup">Double</label>
+    <input id="dup" type="text" name="d1">
+    <input id="dup" type="text" name="d2" aria-label="Second double">
+
+    <!-- 11.1.3 : étiquette non visible, sans title ni texte accolé -->
+    <div class="sep"></div>
+    <input type="text" name="f" aria-label="Terme à rechercher">
+
+    <!-- 11.2.x : étiquettes sans signification -->
+    <div class="sep"></div>
+    <label for="g1">Champ</label><input id="g1" type="text" name="g1">
+    <input type="text" name="g2" aria-label="Champ">
+    <span id="g3-texte">Input 3</span><input type="text" name="g3" aria-labelledby="g3-texte">
+    <input type="text" name="g4" title="Saisie">
+
+    <!-- 11.2.5 : l'intitulé visible n'est pas repris dans le nom accessible -->
+    <div class="sep"></div>
+    <label for="h1">Prénom</label><input id="h1" type="text" name="h1" aria-label="Identité" autocomplete="given-name">
+
+    <!-- 11.4 : position de l'étiquette -->
+    <div class="sep"></div>
+    <input id="p1" type="text" name="p1"><label for="p1">Étiquette sous le champ</label>
+    <div class="sep"></div>
+    <label for="p2">Étiquette éloignée</label>
+    <div style="height: 220px"></div>
+    <input id="p2" type="text" name="p2">
+    <div class="sep"></div>
+    <div class="check"><label for="p3">Case à droite de son étiquette</label><input id="p3" type="checkbox" name="p3"></div>
+
+    <!-- 11.5 / 11.6 : regroupements -->
+    <div class="sep"></div>
+    <div class="check"><input type="radio" id="q1" name="choix" value="1"><label for="q1">Option un</label></div>
+    <div class="check"><input type="radio" id="q2" name="choix" value="2"><label for="q2">Option deux</label></div>
+    <div class="sep"></div>
+    <fieldset>
+      <div class="check"><input type="checkbox" id="s1" name="s1"><label for="s1">Case sans légende</label></div>
+      <div class="check"><input type="checkbox" id="s2" name="s2"><label for="s2">Autre case sans légende</label></div>
+    </fieldset>
+    <div class="sep"></div>
+    <div role="group">
+      <label for="t1">Jour</label><input id="t1" type="text" name="t1">
+      <label for="t2">Mois</label><input id="t2" type="text" name="t2">
+    </div>
+
+    <!-- 11.8 : optgroup sans label -->
+    <div class="sep"></div>
+    <label for="u1">Liste groupée</label>
+    <select id="u1" name="u1">
+      <optgroup><option>Un</option><option>Deux</option></optgroup>
+      <optgroup label=" "><option>Trois</option></optgroup>
+    </select>
+
+    <!-- 11.9 : boutons -->
+    <div class="sep"></div>
+    <button type="button"></button>
+    <button type="button">Bouton</button>
+    <button type="button" aria-label="Confirmer">Valider la saisie</button>
+
+    <!-- 11.10 : champs obligatoires -->
+    <div class="sep"></div>
+    <label for="v1">Téléphone fixe</label><input id="v1" type="text" name="v1" required>
+    <label for="v2">Courriel professionnel *</label><input id="v2" type="text" name="v2">
+    <label for="v3">Date de visite</label><input id="v3" type="text" name="v3" placeholder="jj/mm/aaaa">
+    <label for="v4">Code de suivi</label><input id="v4" type="text" name="v4" pattern="[0-9]{10}">
+    <label for="v5">Numéro de dossier</label>
+    <span class="sr-only" id="v5-aide">Format : 10 chiffres</span>
+    <input id="v5" type="text" name="v5" aria-describedby="v5-aide">
+
+    <!-- 11.13 : autocomplete -->
+    <div class="sep"></div>
+    <label for="w1">Prénom de l’usager</label><input id="w1" type="text" name="w1">
+    <label for="w2">Code postal</label><input id="w2" type="text" name="w2" autocomplete="cp">
+    <label for="w3">Adresse e-mail</label><input id="w3" type="email" name="w3" autocomplete="off">
+  </div>
+</main>
+</body>
+</html>

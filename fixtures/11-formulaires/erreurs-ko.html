@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Contrôle de saisie fautif</title>
+  <link rel="stylesheet" href="base.css">
+</head>
+<body>
+<main>
+  <h1>Contrôle de saisie fautif</h1>
+  <p id="bilan"></p>
+  <form id="f" novalidate>
+    <p>Les champs marqués d’un astérisque (<span>*</span>) sont obligatoires.</p>
+    <label for="nom">Nom <span aria-hidden="true">*</span></label>
+    <input id="nom" name="nom" type="text" autocomplete="family-name" aria-required="true">
+    <div class="sep" style="margin-top: 60px"></div>
+    <label for="tel">Téléphone <span aria-hidden="true">*</span></label>
+    <input id="tel" name="tel" type="text" autocomplete="tel" aria-required="true">
+    <div id="tel-message"></div>
+    <div class="sep" style="margin-top: 60px"></div>
+    <label for="mail">Courriel <span aria-hidden="true">*</span></label>
+    <input id="mail" name="mail" type="email" autocomplete="email" aria-required="true">
+    <div class="sep" style="margin-top: 60px"></div>
+    <label for="code">Code de suivi (10 chiffres)</label>
+    <input id="code" name="code" type="text" pattern="[0-9]{10}">
+    <button type="submit">Envoyer la demande</button>
+  </form>
+</main>
+<script>
+  // Fautif : un message global sans lien avec les champs, aria-invalid sans message relié,
+  // aucune réaction à une valeur de format invalide dans « code ».
+  document.getElementById('f').addEventListener('submit', (event) => {
+    event.preventDefault()
+    const nom = document.getElementById('nom')
+    const tel = document.getElementById('tel')
+    const mail = document.getElementById('mail')
+    let bad = false
+    if (nom.value.trim() === '') bad = true
+    if (tel.value.trim() === '') {
+      tel.setAttribute('aria-invalid', 'true')
+      document.getElementById('tel-message').textContent = 'Champ requis'
+      bad = true
+    }
+    if (mail.value.trim() === '' || !mail.value.includes('@')) {
+      mail.setAttribute('aria-invalid', 'true')
+      bad = true
+    }
+    if (bad) document.getElementById('bilan').textContent = 'Le formulaire contient des erreurs.'
+  })
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Validation native</title>
+  <link rel="stylesheet" href="base.css">
+</head>
+<body>
+<main>
+  <h1>Validation native du navigateur</h1>
+  <form id="f" action="natif.html" method="post">
+    <p>Les champs marqués d’un astérisque (<span>*</span>) sont obligatoires.</p>
+    <label for="nom">Nom <span aria-hidden="true">*</span></label>
+    <input id="nom" name="nom" type="text" autocomplete="family-name" required>
+    <label for="mail">Adresse e-mail <span aria-hidden="true">*</span></label>
+    <p class="aide" id="mail-aide">Format attendu : nom@exemple.fr</p>
+    <input id="mail" name="mail" type="email" autocomplete="email" required aria-describedby="mail-aide">
+    <button type="submit">Envoyer la demande</button>
+  </form>
+</main>
+</body>
+</html>

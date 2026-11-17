@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Contraste élevé proposé</title>
+    <style>
+      body { margin: 0; padding: 16px; font: 16px/1.5 sans-serif; color: #222; background: #fff; }
+      body.fort p { color: #000; }
+      p { color: #aaa; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Page à contraste insuffisant</h1>
+      <p><button type="button" onclick="document.body.classList.toggle('fort')">Contraste élevé</button></p>
+      <p>Texte pâle qu’un mécanisme permet de renforcer.</p>
+    </main>
+  </body>
+</html>

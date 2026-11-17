@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><title>Script de formulaire tardif</title><link rel="stylesheet" href="base.css"></head>
+<body><main>
+  <h1>Script de formulaire tardif</h1>
+  <form id="f" method="get" action="hydratation-tardive.html" novalidate>
+    <p>Les champs marqués d’un astérisque (<span>*</span>) sont obligatoires.</p>
+    <label for="nom">Nom <span aria-hidden="true">*</span></label>
+    <input id="nom" name="nom" type="text" autocomplete="family-name" aria-required="true">
+    <label for="ville">Ville <span aria-hidden="true">*</span></label>
+    <input id="ville" name="ville" type="text" autocomplete="address-level2" aria-required="true">
+    <button type="submit">Envoyer la demande</button>
+  </form>
+</main>
+<script>
+  // Le script du formulaire n'est actif qu'après un moment (chargement différé) :
+  // avant, l'envoi part en natif et la page change.
+  setTimeout(() => {
+    document.getElementById('f').addEventListener('submit', (event) => {
+      event.preventDefault()
+      for (const id of ['nom', 'ville']) {
+        const field = document.getElementById(id)
+        if (field.value.trim() !== '') continue
+        field.setAttribute('aria-invalid', 'true')
+        field.setAttribute('aria-describedby', id + '-erreur')
+        if (!document.getElementById(id + '-erreur')) {
+          const error = document.createElement('div')
+          error.id = id + '-erreur'
+          error.setAttribute('role', 'alert')
+          error.textContent = 'Ce champ est obligatoire.'
+          field.after(error)
+        }
+      }
+      document.querySelector('[aria-invalid]')?.focus()
+    })
+  }, 1800)
+</script>
+</body></html>

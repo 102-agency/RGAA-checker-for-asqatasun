@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>États pâles</title>
+    <style>
+      body { margin: 0; padding: 16px; font: 16px/1.5 sans-serif; color: #222; background: #fff; }
+      a.survol { color: #12253f; }
+      a.survol:hover { color: #ccc; }
+      a.focus { color: #12253f; }
+      a.focus:focus { color: #ccc; outline: 3px solid #000; }
+      .pale { color: #ccc; }
+      #panneau[hidden] { display: none; }
+      #erreur[hidden] { display: none; }
+      #erreur { color: #ccc; }
+      input { border: 1px solid #6b6b6b; padding: 4px; }
+      input:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+      input[aria-invalid='true'] { border-color: #ddd; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>États pâles</h1>
+      <p><a class="survol" href="#a">Lien pâle au survol</a></p>
+      <p><a class="focus" href="#b">Lien pâle au focus</a></p>
+      <details>
+        <summary>Détail replié</summary>
+        <p class="pale">Contenu replié au texte pâle</p>
+      </details>
+      <button type="button" aria-expanded="false" aria-controls="panneau" id="bouton">Ouvrir le panneau</button>
+      <div id="panneau" hidden><p class="pale">Panneau ouvert au texte pâle</p></div>
+      <form id="formulaire" novalidate>
+        <label>Nom <input type="text" name="nom" required /></label>
+        <button type="submit">Envoyer</button>
+        <p id="erreur" hidden>Ce champ est obligatoire, texte pâle</p>
+      </form>
+    </main>
+    <script>
+      const bouton = document.getElementById('bouton')
+      bouton.addEventListener('click', () => {
+        const ouvert = bouton.getAttribute('aria-expanded') === 'true'
+        bouton.setAttribute('aria-expanded', String(!ouvert))
+        document.getElementById('panneau').hidden = ouvert
+      })
+      document.getElementById('formulaire').addEventListener('submit', (event) => {
+        event.preventDefault()
+        document.getElementById('erreur').hidden = false
+        document.querySelector('input').setAttribute('aria-invalid', 'true')
+        document.querySelector('input').focus()
+      })
+    </script>
+  </body>
+</html>

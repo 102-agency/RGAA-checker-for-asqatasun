@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><title>Liste personnalisée simple</title><link rel="stylesheet" href="base.css"></head>
+<body><main>
+  <h1>Liste personnalisée simple</h1>
+  <div role="form" aria-label="Choix">
+    <label id="lab" for="trigger">Réponse</label>
+    <button id="trigger" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="box" aria-labelledby="lab">Choisir</button>
+    <div id="box" role="listbox" aria-labelledby="lab" hidden>
+      <div role="option" aria-selected="false">Oui</div><div role="option" aria-selected="false">Non</div>
+    </div>
+  </div>
+</main>
+<script>
+  const trigger = document.getElementById('trigger')
+  const box = document.getElementById('box')
+  trigger.addEventListener('click', () => {
+    box.hidden = !box.hidden
+    trigger.setAttribute('aria-expanded', String(!box.hidden))
+  })
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { box.hidden = true } })
+</script>
+</body></html>

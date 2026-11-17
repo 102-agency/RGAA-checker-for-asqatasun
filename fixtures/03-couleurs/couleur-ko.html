@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Information par la couleur seule</title>
+    <style>
+      body { margin: 0; padding: 16px; font: 18px/1.6 sans-serif; color: #000; background: #fff; }
+      a { text-decoration: none; }
+      .pale { color: #444; }           /* presque noir : trop peu de contraste avec le texte, et aucun repère non coloré */
+      .rouge { color: #c00000; }       /* contraste >= 3 avec le noir, mais aucun repère au survol ni au focus */
+      .survol { color: #c00000; }
+      .survol:hover, .survol:focus { text-decoration: underline; }
+      .souligne { color: #c00000; text-decoration: underline; }
+      nav a { color: #000; padding: 4px 8px; }
+      nav a.courant { color: #c00000; }
+      nav.gras a.courant { color: #c00000; font-weight: 700; }
+      .point { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #c00000; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Information par la couleur seule</h1>
+      <p>Un texte de paragraphe avec <a class="pale" href="#a">un lien presque noir</a> dans la phrase.</p>
+      <p>Un texte de paragraphe avec <a class="rouge" href="#b">un lien rouge sans repère</a> dans la phrase.</p>
+      <p>Un texte de paragraphe avec <a class="survol" href="#c">un lien souligné au survol</a> dans la phrase.</p>
+      <p>Un texte de paragraphe avec <a class="souligne" href="#d">un lien toujours souligné</a> dans la phrase.</p>
+      <nav aria-label="Rubriques">
+        <a href="#e" class="courant" aria-current="page">Accueil</a>
+        <a href="#f">Actualités</a>
+      </nav>
+      <nav aria-label="Rubriques en gras" class="gras">
+        <a href="#e" class="courant" aria-current="page">Accueil</a>
+        <a href="#f">Actualités</a>
+      </nav>
+      <p>Les champs obligatoires sont indiqués en rouge.</p>
+      <p>Le dossier est <span style="color:#c00000">urgent</span> pour la fin du mois.</p>
+      <p><span class="point"></span> Salle réservée</p>
+      <table><tr><td>Mairie annexe</td><td style="color:#c00000">Annulé</td></tr></table>
+      <video width="200" height="100" controls title="Présentation"></video>
+      <canvas width="200" height="80" aria-label="Carte des quartiers"></canvas>
+      <p><img src="graphique.svg" alt="Répartition des dépenses par poste" width="320" height="120" /></p>
+      <p><img src="photo.png" alt="Le parc au printemps" width="240" height="160" /></p>
+    </main>
+  </body>
+</html>

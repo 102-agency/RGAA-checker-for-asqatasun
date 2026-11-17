@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Textes trop pâles</title>
+    <style>
+      body { margin: 0; padding: 16px; font: 16px/1.5 sans-serif; color: #222; background: #fff; }
+      .n1 { color: #999; } /* 2,85:1, normal, < 24 px : 4,5 attendus */
+      .n2 { color: #999; font-weight: 700; } /* gras < 18,5 px */
+      .n3 { color: #bbb; font-size: 24px; } /* normal >= 24 px : 3 attendus, 1,9 mesurés */
+      .n4 { color: #ccc; font-size: 20px; font-weight: 700; } /* gras >= 18,5 px */
+      .n5 { color: #949494; font-size: 20px; font-weight: 600; } /* 600 n'est pas « gras » : 4,5 attendus */
+      .n6 { color: #949494; font-size: 23.9px; } /* juste sous 24 px : 4,5 attendus */
+      .n7 { color: #333; }
+      .n8 { color: oklch(0.8 0.02 250); }
+      .n9 { background: linear-gradient(90deg, #fff, #222); color: #777; }
+      .n10 { position: relative; background: url(bandes.png) 0 0 / 400px 120px; width: 400px; height: 120px; }
+      .n10 p { margin: 0; padding: 40px 10px; color: #fff; }
+      .n11 { color: rgb(0 0 0 / 0.3); }
+      input { border: 1px solid #6b6b6b; padding: 4px; color: #222; background: #fff; }
+      .n12::placeholder { color: #bbb; }
+      .n13 { color: #ccc; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Textes trop pâles</h1>
+      <p class="n1">Gris clair normal</p>
+      <p class="n2">Gris clair gras</p>
+      <p class="n3">Très pâle agrandi</p>
+      <p class="n4">Pâle gras agrandi</p>
+      <p class="n5">Graisse intermédiaire</p>
+      <p class="n6">Presque grand texte</p>
+      <div style="opacity: 0.4"><p class="n7">Texte foncé noyé par l’opacité du conteneur</p></div>
+      <p class="n8">Couleur oklch pâle</p>
+      <p class="n9">Texte gris sur un dégradé du blanc au noir</p>
+      <div class="n10"><p>Texte blanc sur une image à moitié blanche</p></div>
+      <p class="n11">Texte noir à 30 % d’opacité</p>
+      <p><input class="n12" type="text" placeholder="Placeholder pâle" aria-label="Champ" /></p>
+      <p><input class="n13" type="text" value="Valeur saisie pâle" aria-label="Champ prérempli" /></p>
+      <svg width="260" height="40" role="img" aria-label="Légende"><text x="5" y="25" fill="#ccc" font-size="16">Texte SVG pâle</text></svg>
+    </main>
+  </body>
+</html>

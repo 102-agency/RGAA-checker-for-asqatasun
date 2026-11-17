@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Envoi à vide accepté</title>
+  <link rel="stylesheet" href="base.css">
+</head>
+<body>
+<main>
+  <h1>Envoi à vide accepté</h1>
+  <form id="f" novalidate>
+    <p>Les champs marqués d’un astérisque (<span>*</span>) sont obligatoires.</p>
+    <label for="nom">Nom <span aria-hidden="true">*</span></label>
+    <input id="nom" name="nom" type="text" autocomplete="family-name" aria-required="true">
+    <label for="mail">Adresse e-mail <span aria-hidden="true">*</span></label>
+    <input id="mail" name="mail" type="email" autocomplete="email" aria-required="true">
+    <button type="submit">Envoyer la demande</button>
+  </form>
+</main>
+<script>
+  // Fautif : le formulaire part sans aucun contrôle de saisie.
+  document.getElementById('f').addEventListener('submit', (event) => {
+    event.preventDefault()
+    fetch('/envoi', { method: 'POST', body: new FormData(event.target) })
+  })
+</script>
+</body>
+</html>

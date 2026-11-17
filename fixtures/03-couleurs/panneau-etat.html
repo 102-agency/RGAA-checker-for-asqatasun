@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Page courante dans un menu replié</title>
+    <style>
+      body { margin: 0; padding: 16px; font: 18px/1.6 sans-serif; color: #000; background: #fff; }
+      #menu[hidden] { display: none; }
+      #menu a { color: #000; text-decoration: none; padding: 4px 8px; display: block; }
+      #menu a[aria-current='page'] { color: #c00000; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Menu replié</h1>
+      <button type="button" id="b" aria-expanded="false" aria-controls="menu">Rubriques</button>
+      <nav id="menu" aria-label="Rubriques" hidden>
+        <ul style="list-style:none;margin:0;padding:0">
+          <li><a href="#a" aria-current="page">Accueil</a></li>
+          <li><a href="#b2">Actualités</a></li>
+        </ul>
+      </nav>
+    </main>
+    <script>
+      const b = document.getElementById('b')
+      b.addEventListener('click', () => {
+        const open = b.getAttribute('aria-expanded') === 'true'
+        b.setAttribute('aria-expanded', String(!open))
+        document.getElementById('menu').hidden = open
+      })
+    </script>
+  </body>
+</html>

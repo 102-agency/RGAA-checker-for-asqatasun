@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cache-ok</title>
+<style>body{font:16px/1.5 sans-serif;color:#111;background:#fff;margin:16px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}</style>
+</head>
+<body>
+<main>
+<button type="button" aria-controls="p1" aria-expanded="false" id="b1">Ouvrir le panneau</button>
+<div id="p1" hidden>Contenu du panneau révélé au clavier</div>
+<details><summary>Plus de détails</summary><p>Détails dépliables.</p></details>
+<span id="lbl" hidden>Nom complet</span><input type="text" aria-labelledby="lbl">
+<p>Texte lu seulement par les lecteurs d’écran : <span class="sr-only">information réservée</span></p>
+<script>
+document.getElementById('b1').addEventListener('click', function () {
+  var open = this.getAttribute('aria-expanded') === 'true'
+  this.setAttribute('aria-expanded', open ? 'false' : 'true')
+  document.getElementById('p1').hidden = open
+})
+</script>
+</main>
+</body>
+</html>

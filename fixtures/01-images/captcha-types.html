@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8" /><title>CAPTCHA par type</title></head>
+<body><main><h1>CAPTCHA par type</h1>
+<form action="/f">
+<input type="image" src="captcha.png" alt="Code de sécurité" width="40" height="20" />
+<img src="a.png" usemap="#c" alt="Code de sécurité (captcha)" width="100" height="50" />
+<map name="c"><area shape="rect" coords="0,0,10,10" href="/q" alt="Zone du captcha" /></map>
+<p><object data="captcha.png" type="image/png" title="Code de sécurité" width="40" height="40"></object></p>
+<p><embed src="captcha.png" type="image/png" title="Code de sécurité" width="40" height="40" /></p>
+<p><svg class="captcha" role="img" aria-label="Code de sécurité" viewBox="0 0 24 24" width="24" height="24"><path d="M5 5h6"/></svg></p>
+<p><canvas id="captcha-canvas" role="img" aria-label="Code de sécurité" width="50" height="50"></canvas></p>
+</form>
+</main></body></html>

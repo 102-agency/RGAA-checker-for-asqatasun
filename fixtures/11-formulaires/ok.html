@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Formulaires conformes</title>
+  <link rel="stylesheet" href="base.css">
+</head>
+<body>
+<main>
+  <h1>Formulaires conformes</h1>
+
+  <form id="contact" novalidate>
+    <p>Les champs marqués d’un astérisque (<span>*</span>) sont obligatoires.</p>
+    <label for="prenom">Prénom <span aria-hidden="true">*</span></label>
+    <input id="prenom" name="prenom" type="text" autocomplete="given-name" aria-required="true">
+    <label for="nom">Nom <span aria-hidden="true">*</span></label>
+    <input id="nom" name="nom" type="text" autocomplete="family-name" aria-required="true">
+    <label for="mail">Adresse e-mail <span aria-hidden="true">*</span></label>
+    <p class="aide" id="mail-aide">Format attendu : nom@exemple.fr</p>
+    <input id="mail" name="mail" type="email" autocomplete="email" aria-required="true" aria-describedby="mail-aide">
+    <label for="message">Votre message</label>
+    <textarea id="message" name="message" rows="3"></textarea>
+    <fieldset>
+      <legend>Mode de réponse souhaité</legend>
+      <div class="check"><input type="radio" id="r-mail" name="mode" value="mail"><label for="r-mail">Par courriel</label></div>
+      <div class="check"><input type="radio" id="r-tel" name="mode" value="tel"><label for="r-tel">Par téléphone</label></div>
+    </fieldset>
+    <label for="service">Service concerné</label>
+    <select id="service" name="service">
+      <option value="">Choisir un service</option>
+      <optgroup label="Famille"><option>État civil</option><option>Petite enfance</option></optgroup>
+      <optgroup label="Cadre de vie"><option>Voirie</option><option>Propreté</option></optgroup>
+    </select>
+    <button type="submit">Envoyer le message</button>
+  </form>
+
+  <div class="sep"></div>
+  <form id="recherche" role="search" action="ok.html">
+    <input type="search" name="q" aria-label="Rechercher sur le site">
+    <button type="submit">Rechercher</button>
+  </form>
+</main>
+<script>
+  const form = document.getElementById('contact')
+  const MESSAGES = {
+    prenom: 'Ce champ est obligatoire.',
+    nom: 'Ce champ est obligatoire.',
+    mail: 'Saisissez une adresse e-mail valide, au format nom@exemple.fr.',
+  }
+  form.addEventListener('submit', (event) => {
+    event.preventDefault()
+    let first = null
+    for (const id of ['prenom', 'nom', 'mail']) {
+      const field = document.getElementById(id)
+      const value = field.value.trim()
+      const invalid = value === '' || (id === 'mail' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value))
+      let error = document.getElementById(id + '-erreur')
+      if (invalid) {
+        if (!error) {
+          error = document.createElement('div')
+          error.id = id + '-erreur'
+          error.setAttribute('role', 'alert')
+          field.after(error)
+        }
+        error.textContent = value === '' && id !== 'mail' ? MESSAGES[id] : MESSAGES[id]
+        field.setAttribute('aria-invalid', 'true')
+        const base = id === 'mail' ? 'mail-aide ' : ''
+        field.setAttribute('aria-describedby', base + id + '-erreur')
+        first = first || field
+      } else {
+        field.removeAttribute('aria-invalid')
+        error?.remove()
+      }
+    }
+    if (first) first.focus()
+    else fetch('/envoi', { method: 'POST', body: new FormData(form) })
+  })
+</script>
+</body>
+</html>
