@@ -97,6 +97,9 @@ kbd {
   background: var(--surface); border-bottom: 1px solid var(--bord);
   padding: 0 clamp(1rem, 4vw, 2.5rem);
 }
+@media (max-width: 40rem) {
+  .vues { position: static; }
+}
 .vues ul { display: flex; flex-wrap: wrap; gap: .25rem; margin: 0; padding: .5rem 0; list-style: none; }
 .vues button {
   font: inherit; cursor: pointer;
