@@ -172,6 +172,19 @@ export async function scanInteractions(
         if (!difference) {
           verdict = 'unmeasured'
           detail = `mesure impossible (${detail ?? 'erreur'})`
+        } else if (
+          difference.changed < CHANGED_MIN &&
+          !(await page.evaluate((s) => {
+            // Rendu, pas forcément visible : une case à cocher d'1 px transparente garde son focus lisible sur son libellé.
+            const el = document.querySelector(s)
+            return el !== null && window.__rgaa.isRendered(el)
+          }, info.ref.selector))
+        ) {
+          // L'élément a reçu le focus quand son menu était ouvert, mais il est masqué à nouveau (menu replié) :
+          // la mesure porte sur du vide. On ne conclut pas.
+          verdict = 'unmeasured'
+          detail =
+            'l’élément n’était plus affiché au moment de la mesure (contenu replié après la tabulation)'
         } else if (difference.changed < CHANGED_MIN) {
           verdict = 'invisible'
           detail = `aucun changement visible à l’écran entre l’état sans focus et avec focus (${difference.changed} pixel(s) modifié(s))`

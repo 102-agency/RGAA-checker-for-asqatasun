@@ -56,7 +56,8 @@ const doctype = defineCheck(['8.1.1', '8.1.2', '8.1.3'], async (ctx, t) => {
 /**
  * Erreurs d'analyse HTML qui relèvent des points du test 8.2.1 (écriture des
  * balises et attributs, imbrication, ouverture/fermeture, attributs doublés).
- * Les autres codes (caractères de contrôle, entités ambiguës…) n'en relèvent pas.
+ * Les autres codes (caractères de contrôle, entités ambiguës…) n'en relèvent pas. Le doctype
+ * lui-même relève de 8.1.2 : un doctype HTML 4.01 ou XHTML valide n'est pas une erreur ici.
  */
 const SYNTAX_ERRORS = new Set([
   'duplicate-attribute',
@@ -82,7 +83,6 @@ const SYNTAX_ERRORS = new Set([
   'nested-noscript-in-head',
   'open-elements-left-after-eof',
   'disallowed-content-in-noscript-in-head',
-  'non-conforming-doctype',
   'misplaced-doctype',
   'missing-doctype',
 ])

@@ -179,10 +179,14 @@ export function layoutSnapshot(): LayoutSnapshot {
       total > 0 &&
       shownInAncestors / total < 0.15 &&
       owner.closest('[aria-hidden="true"]') !== null
+    // Texte entièrement masqué dans un bouton ou un lien : technique du bouton-icône (« Menu » à côté d'un
+    // pictogramme) ou d'un sous-menu replié. Le texte est volontairement absent de l'écran, pas rogné.
+    const hiddenInControl =
+      ratio < 0.02 && owner.closest('button, a[href], [role="button"]') !== null
     if (!parkedLayer) {
       for (const line of found) lines.push({ box: line.box, node: text, owner })
     }
-    if (ratio < 0.98 && !parkedLayer) {
+    if (ratio < 0.98 && !parkedLayer && !hiddenInControl) {
       items.push({
         key: pathKey(text),
         kind: 'text',

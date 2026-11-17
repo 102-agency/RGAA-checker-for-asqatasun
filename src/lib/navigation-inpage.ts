@@ -65,8 +65,12 @@ export function collectFeatures(page: Page): Promise<PageFeatures> {
 
     const place = (el: Element): Place => {
       const rect = el.getBoundingClientRect()
-      const header = el.closest('header, [role="banner"]')
-      const base = header ? header.getBoundingClientRect() : { left: 0, top: -window.scrollY }
+      // Les coordonnées se prennent dans l'en-tête ou le pied de page qui contient l'élément : ni un bandeau
+      // d'alerte au-dessus, ni la longueur de la page (pied de page) ne le déplacent.
+      const anchor = el.closest('header, [role="banner"], footer, [role="contentinfo"]')
+      const base = anchor
+        ? anchor.getBoundingClientRect()
+        : { left: -window.scrollX, top: -window.scrollY }
       const holder = el.closest(
         'header, [role="banner"], footer, [role="contentinfo"], main, [role="main"], aside',
       )
@@ -84,7 +88,7 @@ export function collectFeatures(page: Page): Promise<PageFeatures> {
                 : 'main'
       }
       return {
-        x: Math.round(rect.left - (header ? base.left : 0) + (header ? 0 : window.scrollX)),
+        x: Math.round(rect.left - base.left),
         y: Math.round(rect.top - base.top),
         w: Math.round(rect.width),
         h: Math.round(rect.height),
@@ -124,6 +128,27 @@ export function collectFeatures(page: Page): Promise<PageFeatures> {
       .filter(shown)
       .map((el) => ({ el, links: Array.from(el.querySelectorAll('a[href]')).filter(shown) }))
       .filter((entry) => entry.links.length >= 2)
+    // Pages sans balise <nav> : une liste de liens dans un conteneur nommé « nav » ou « menu ».
+    if (navs.length === 0) {
+      const NAV_NAME = /(^|[\s_-])(nav|navigation|menu|mainnav|main-menu|topnav)($|[\s_-])/i
+      for (const list of document.querySelectorAll('ul, ol')) {
+        if (!shown(list)) continue
+        let named = false
+        for (
+          let node: Element | null = list;
+          node && node !== document.body;
+          node = node.parentElement
+        ) {
+          if (
+            NAV_NAME.test(`${node.id} ${typeof node.className === 'string' ? node.className : ''}`)
+          )
+            named = true
+        }
+        const links = Array.from(list.querySelectorAll('a[href]')).filter(shown)
+        if (named && links.length >= 2 && !list.parentElement?.closest('ul, ol'))
+          navs.push({ el: list, links })
+      }
+    }
     navs.sort((a, b) => {
       const inHeader = (entry: { el: Element }) =>
         entry.el.closest('header, [role="banner"]') ? 1 : 0

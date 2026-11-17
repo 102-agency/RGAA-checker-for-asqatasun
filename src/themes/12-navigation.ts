@@ -608,14 +608,19 @@ function samePlace(a: Place, b: Place): boolean {
   )
 }
 
-/** Valeur de référence : celle que partage le plus grand nombre de pages (la première en cas d'égalité). */
+/**
+ * Valeur de référence : celle que partage le plus grand nombre de pages. En cas d'égalité, la page
+ * citée en premier à l'audit l'emporte : le résultat ne dépend pas de l'ordre d'achèvement des pages.
+ */
 function reference<T>(
   values: PageValue<T>[],
   same: (a: T, b: T) => boolean,
+  pages: { url: string }[],
 ): PageValue<T> | undefined {
+  const rank = (value: PageValue<T>) => pages.findIndex((page) => page.url === value.url)
   let best: PageValue<T> | undefined
   let bestCount = 0
-  for (const candidate of values) {
+  for (const candidate of [...values].sort((a, b) => rank(a) - rank(b))) {
     const count = values.filter((other) => same(candidate.value, other.value)).length
     if (count > bestCount) {
       best = candidate
@@ -669,6 +674,7 @@ const menuConsistency = defineSiteCheck(['12.2.1'], async (site, t) => {
   const ref = reference(
     menus,
     (a, b) => samePlace(a.place, b.place) && a.beforeMain === b.beforeMain,
+    site.pages,
   )
   if (!ref) return
   for (const entry of menus) {
@@ -711,6 +717,7 @@ function featureConsistency(
     const ref = reference(
       present,
       (a, b) => samePlace(a.place, b.place) && a.beforeMain === b.beforeMain,
+      site.pages,
     )
     const withFeature = new Set(present.map((entry) => entry.url))
 
@@ -777,6 +784,7 @@ const skipConsistency = defineSiteCheck(['12.7.2'], async (site, t) => {
     records,
     (a, b) =>
       Math.abs(a.x - b.x) <= SHIFT && Math.abs(a.y - b.y) <= SHIFT && a.domIndex === b.domIndex,
+    site.pages,
   )
   for (const entry of records) {
     const o = t(entry.url, '12.7.2')
