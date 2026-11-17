@@ -1,4 +1,5 @@
 import { ASQATASUN_LABEL } from '../core/asqatasun.ts'
+import { SCREENSHOT_PATH } from '../core/capture.ts'
 import { type Catalog, compareIds, criterionOf, themeOf } from '../core/catalog.ts'
 import type { Status } from '../core/types.ts'
 import { escapeHtml as esc } from '../security/text.ts'
@@ -46,8 +47,6 @@ const STATE_STATUS: Record<PageState, Status> = {
   'non-conforme': 'NC',
   'non-auditee': 'ERR',
 }
-
-const SCREENSHOT = /^preuves\/[\p{L}\p{N}][\p{L}\p{N}._-]{0,127}\/[0-9a-f]{12}\.png$/u
 
 function safeHref(url: string): string | null {
   try {
@@ -253,7 +252,7 @@ ${issue.asqatasunOnly.length ? `<p class="ko">Non conforme selon Asqatasun seule
         .map(([name, value]) => `<dt>${esc(name)}</dt><dd>${esc(value)}</dd>`)
         .join('')
       const image =
-        item.screenshot && SCREENSHOT.test(item.screenshot)
+        item.screenshot && SCREENSHOT_PATH.test(item.screenshot)
           ? `<img src="${esc(item.screenshot)}" alt="Capture de l’élément concerné" loading="lazy">`
           : ''
       return `<div class="question"><p><strong>${esc(item.question)}</strong></p>

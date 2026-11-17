@@ -1,7 +1,8 @@
 import type { AsqatasunStatus } from '../core/asqatasun.ts'
-import { KEY_PATTERN } from '../core/decisions.ts'
+import { SCREENSHOT_PATH } from '../core/capture.ts'
+import { KEY_PATTERN, LIMITS } from '../core/decisions.ts'
 import { UserError } from '../core/errors.ts'
-import { STATUSES, type Status } from '../core/types.ts'
+import { type Doubt, STATUSES, type Status } from '../core/types.ts'
 import { readJsonFile } from '../security/fs.ts'
 import { Reader } from '../security/validate.ts'
 import {
@@ -22,6 +23,25 @@ import {
 const TEST_ID = /^\d{1,2}\.\d{1,2}\.\d{1,2}$/
 const ASQATASUN: readonly AsqatasunStatus[] = ['C', 'NC', 'NA', 'PQ', 'NT']
 const PAGE_STATES = ['conforme', 'a-valider', 'non-conforme', 'non-auditee'] as const
+
+/**
+ * Chemin de capture : seul `preuves/<dossier>/<empreinte>.png` est retenu ; tout
+ * autre chemin (`../../etc/passwd`…) est écarté, la capture est alors ignorée.
+ */
+function screenshot(read: Reader, value: unknown, path: string): string | undefined {
+  const text = read.optionalString(value ?? undefined, path, 500)
+  return text !== undefined && SCREENSHOT_PATH.test(text) ? text : undefined
+}
+
+function doubtOf(read: Reader, value: unknown, path: string): Doubt | undefined {
+  if (value === undefined || value === null) return undefined
+  const source = read.record(value, path)
+  return {
+    reason: read.string(source.reason, `${path}.reason`, LIMITS.reason),
+    by: read.string(source.by, `${path}.by`, LIMITS.by),
+    date: read.string(source.date, `${path}.date`, 20),
+  }
+}
 
 function statusCounts(read: Reader, value: unknown, path: string): Record<Status, number> {
   const source = read.record(value, path)
@@ -55,10 +75,16 @@ function testEntry(read: Reader, value: unknown, path: string): TestEntry {
     failureCount: read.number(source.failureCount, `${path}.failureCount`),
     failures: read.array(source.failures, `${path}.failures`, 1_000).map((item, index) => {
       const failure = read.record(item, `${path}.failures[${index}]`)
+      const where = `${path}.failures[${index}]`
       return {
-        message: read.string(failure.message, `${path}.failures[${index}].message`),
-        selector: read.optionalString(failure.selector, `${path}.failures[${index}].selector`),
-        snippet: read.optionalString(failure.snippet, `${path}.failures[${index}].snippet`),
+        id:
+          failure.id === undefined
+            ? undefined
+            : read.matching(failure.id, KEY_PATTERN, `${where}.id`, 'empreinte'),
+        message: read.string(failure.message, `${where}.message`),
+        selector: read.optionalString(failure.selector, `${where}.selector`),
+        snippet: read.optionalString(failure.snippet, `${where}.snippet`),
+        screenshot: screenshot(read, failure.screenshot, `${where}.screenshot`),
       }
     }),
     pending: read.array(source.pending, `${path}.pending`, 1_000).map((item, index) => {
@@ -113,8 +139,9 @@ export function parsePending(read: Reader, value: unknown, path: string): Pendin
     evidence: read.stringMap(source.evidence, `${path}.evidence`),
     selector: read.optionalString(source.selector, `${path}.selector`),
     snippet: read.optionalString(source.snippet, `${path}.snippet`),
-    screenshot: read.optionalString(source.screenshot, `${path}.screenshot`, 500),
+    screenshot: screenshot(read, source.screenshot, `${path}.screenshot`),
     url: read.optionalString(source.url, `${path}.url`, 4_000),
+    doubt: doubtOf(read, source.doubt, `${path}.doubt`),
     tests: read.stringList(source.tests, `${path}.tests`, 300),
     pages: read.stringList(source.pages, `${path}.pages`),
   }
