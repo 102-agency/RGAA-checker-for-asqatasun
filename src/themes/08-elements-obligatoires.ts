@@ -191,7 +191,12 @@ const defaultLanguage = defineCheck(['8.3.1', '8.4.1'], async (ctx, t) => {
     )
     for (let node = walker.nextNode(); node && text.length < 4000; node = walker.nextNode()) {
       const parent = node.parentElement
-      if (!parent || parent.closest('[lang]') !== root || parent.closest('script, style, noscript'))
+      // `aria-hidden` : lettres séparées d'un effet de survol, icônes… ne sont pas du texte lu.
+      if (
+        !parent ||
+        parent.closest('[lang]') !== root ||
+        parent.closest('script, style, noscript, [aria-hidden="true"]')
+      )
         continue
       if (isRendered(parent)) text += ` ${node.nodeValue}`
     }
@@ -301,7 +306,7 @@ const languageChanges = defineCheck(['8.7.1', '8.8.1'], async (ctx, t) => {
       if (isHiddenFromAT(el)) continue
       // On ne garde que les blocs « feuilles » pour ne pas juger deux fois le même texte.
       if (el.querySelector('p, li, h1, h2, h3, h4, h5, h6, td, th, dt, dd, blockquote')) continue
-      const text = visibleText(el)
+      const text = window.__rgaa.readableText(el)
       if (text.length < 20) continue
       const lang = el.closest('[lang]')?.getAttribute('lang') ?? ''
       blocks.push({ text, lang, ref: ref(el) })

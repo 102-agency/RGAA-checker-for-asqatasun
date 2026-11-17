@@ -120,8 +120,14 @@
     return withAxe(el, (axe, node) => (node ? axe.commons.aria.getRole(node) : null))
   }
 
-  /** Texte visible de l'élément, sans les contenus masqués, espaces normalisés. */
-  function visibleText(el) {
+  /**
+   * Texte visible de l'élément, sans les contenus masqués, espaces normalisés.
+   * `options.skipAriaHidden` écarte aussi les sous-arbres `aria-hidden="true"` : le texte
+   * que lisent les technologies d'assistance, sans les doublons décoratifs (lettres
+   * séparées d'un effet de survol, par exemple, qui donnent « R R é é a a l l… »).
+   */
+  function visibleText(el, options) {
+    const skipAriaHidden = Boolean(options && options.skipAriaHidden)
     let out = ''
     const walk = (node) => {
       if (node.nodeType === 3) {
@@ -131,6 +137,7 @@
       if (node.nodeType !== 1 || !isRendered(node)) return
       const tag = node.localName
       if (tag === 'script' || tag === 'style' || tag === 'noscript' || tag === 'template') return
+      if (skipAriaHidden && node !== el && node.getAttribute('aria-hidden') === 'true') return
       const block = getComputedStyle(node).display !== 'inline'
       if (block) out += ' '
       for (const child of node.childNodes) walk(child)
@@ -138,6 +145,11 @@
     }
     walk(el)
     return norm(out)
+  }
+
+  /** Texte exposé aux technologies d'assistance : `visibleText` sans les sous-arbres `aria-hidden`. */
+  function readableText(el) {
+    return visibleText(el, { skipAriaHidden: true })
   }
 
   let canvasContext = null
@@ -217,6 +229,7 @@
     accName,
     role,
     visibleText,
+    readableText,
     rgba,
     blend,
     luminance,

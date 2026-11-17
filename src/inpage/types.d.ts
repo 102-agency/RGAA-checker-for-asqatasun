@@ -28,7 +28,9 @@ export interface RgaaInPage {
   /** Rôle ARIA effectif (explicite ou implicite), ou `null`. */
   role(el: Element): string | null
   /** Texte visible, contenus masqués exclus. */
-  visibleText(el: Element): string
+  visibleText(el: Element, options?: { skipAriaHidden?: boolean }): string
+  /** Texte exposé aux technologies d'assistance : sans les sous-arbres `aria-hidden` (doublons décoratifs). */
+  readableText(el: Element): string
   /** Couleur CSS quelconque (oklch, color-mix…) vers sRGB `[r, g, b, a]`. */
   rgba(color: string): [number, number, number, number]
   /** Superpose `front` (avec alpha) sur un fond opaque. */

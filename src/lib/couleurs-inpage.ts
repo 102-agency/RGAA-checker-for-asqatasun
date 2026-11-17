@@ -1408,7 +1408,7 @@ export function installCouleurs(): void {
         out.push({
           ref: rgaa.ref(active),
           attribute,
-          name: norm(rgaa.visibleText(active)).slice(0, 60),
+          name: norm(rgaa.accName(active) || rgaa.readableText(active)).slice(0, 60),
           differences,
           structural,
         })

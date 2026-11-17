@@ -34,6 +34,12 @@ describe('Thématique 8 — éléments obligatoires', () => {
     expect(page['8.10.2']?.status).toBe('NA')
   })
 
+  it('les lettres doublées d’un effet de survol (aria-hidden) ne faussent pas la détection de langue', async () => {
+    // 90 « e » isolés : pris pour des mots, ils feraient passer ce texte français pour de l'italien.
+    const page = await bench.audit(checks, `${DIR}/langue-lettres-doublees.html`)
+    expect(page['8.4.1']?.status, JSON.stringify(page['8.4.1']?.failures)).toBe('C')
+  })
+
   it('relève chaque défaut de la page fautive', async () => {
     const page = await bench.audit(checks, `${DIR}/ko.html`)
     expect(page['8.1.1']?.status).toBe('NC')
