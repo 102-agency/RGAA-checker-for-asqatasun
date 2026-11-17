@@ -83,10 +83,10 @@ export function layoutSnapshot(): LayoutSnapshot {
     cs.position !== 'static' || cs.transform !== 'none' || cs.filter !== 'none'
 
   /** Rogne `rect` par les ancêtres qui coupent (`overflow: hidden|clip`) et par la fenêtre. */
-  const clip = (start: Element, rect: Box): Box | null => {
+  const clip = (start: Element, rect: Box, withViewport = true): Box | null => {
     let { left, top, right, bottom } = rect
-    if (left < 0) left = 0
-    if (clipsViewportX && right > vw) right = vw
+    if (withViewport && left < 0) left = 0
+    if (withViewport && clipsViewportX && right > vw) right = vw
     let mode: 'normal' | 'abs' | 'fixed' = 'normal'
     for (
       let n: Element | null = start;
@@ -146,19 +146,43 @@ export function layoutSnapshot(): LayoutSnapshot {
         ? (anchor as HTMLAnchorElement).pathname + (anchor as HTMLAnchorElement).search
         : null,
     })
+    // La zone de contenu de la police dépasse souvent la hauteur de ligne : un conteneur
+    // `overflow: hidden` aussi haut que la ligne ne rogne alors aucun glyphe. On mesure la boîte de ligne.
+    const lineHeight = Number.parseFloat(getComputedStyle(owner).lineHeight)
     let total = 0
     let shown = 0
+    let shownInAncestors = 0
+    const found: { box: Box }[] = []
     for (const r of rects) {
-      const box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom }
+      let { top, bottom } = r
+      if (Number.isFinite(lineHeight) && r.height > lineHeight + 0.5) {
+        const extra = (r.height - lineHeight) / 2
+        top += extra
+        bottom -= extra
+      }
+      const box = { left: r.left, top, right: r.right, bottom }
       total += area(box)
       const clipped = clip(owner, box)
+      const clippedByAncestors = clip(owner, box, false)
+      if (clippedByAncestors) shownInAncestors += area(clippedByAncestors)
       if (clipped) {
         shown += area(clipped)
-        lines.push({ box: clipped, node: text, owner })
+        found.push({ box: clipped })
       }
     }
     const ratio = total > 0 ? shown / total : 1
-    if (ratio < 0.98) {
+    // Calque décoratif (`aria-hidden`) rangé tout entier hors de son conteneur qui coupe : l'état d'attente
+    // d'un effet (lettre qui se retourne au survol, diapositive hors champ), pas un texte rogné.
+    // Un texte coupé par la fenêtre, ou qui n'est pas masqué aux technologies d'assistance, reste signalé.
+    const parkedLayer =
+      ratio < 0.98 &&
+      total > 0 &&
+      shownInAncestors / total < 0.15 &&
+      owner.closest('[aria-hidden="true"]') !== null
+    if (!parkedLayer) {
+      for (const line of found) lines.push({ box: line.box, node: text, owner })
+    }
+    if (ratio < 0.98 && !parkedLayer) {
       items.push({
         key: pathKey(text),
         kind: 'text',

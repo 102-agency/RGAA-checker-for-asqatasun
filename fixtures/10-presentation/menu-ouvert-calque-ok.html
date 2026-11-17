@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>menu-ouvert-calque-ok</title>
+<style>
+body{margin:8px;font:16px/1.2 sans-serif;color:#111;background:#fff}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* Effet de survol : chaque lettre est une cellule qui ne montre que son premier calque ;
+   le second attend sous la cellule (aria-hidden : le texte lu est celui de .sr). */
+.c{display:inline-block;height:1.2em;overflow:hidden;vertical-align:top;line-height:1.2em}
+.c>span{display:block}
+</style>
+</head>
+<body>
+<main><button type="button" id="b" aria-expanded="false" aria-controls="p">Menu</button>
+<div id="p" hidden><a href="#x" style="font-size:20px"><span class="sr">Réalisations</span><span aria-hidden="true"><span class="c"><span>R</span><span>R</span></span><span class="c"><span>é</span><span>é</span></span><span class="c"><span>a</span><span>a</span></span><span class="c"><span>l</span><span>l</span></span><span class="c"><span>i</span><span>i</span></span><span class="c"><span>s</span><span>s</span></span><span class="c"><span>a</span><span>a</span></span><span class="c"><span>t</span><span>t</span></span><span class="c"><span>i</span><span>i</span></span><span class="c"><span>o</span><span>o</span></span><span class="c"><span>n</span><span>n</span></span><span class="c"><span>s</span><span>s</span></span></span></a></div><script>
+var b = document.getElementById('b'), p = document.getElementById('p')
+b.addEventListener('click', function () {
+  var open = b.getAttribute('aria-expanded') === 'true'
+  b.setAttribute('aria-expanded', open ? 'false' : 'true')
+  p.hidden = open
+})
+</script></main>
+</body>
+</html>

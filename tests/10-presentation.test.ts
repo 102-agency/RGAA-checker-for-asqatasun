@@ -466,6 +466,12 @@ describe('Thématique 10 — présentation de l’information', () => {
       expect(status(ok, '10.12.1'), messages(ok['10.12.1'])).toBe('10.12.1=C')
     })
 
+    it('10.4.1 et 10.11.1 : le calque décoratif d’un effet de survol, rangé hors de sa cellule, n’est pas un texte rogné', async () => {
+      const page = await run('menu-ouvert-calque-ok', ['10.4.1', '10.11.1'])
+      expect(status(page, '10.4.1'), messages(page['10.4.1'])).toBe('10.4.1=C')
+      expect(status(page, '10.11.1'), messages(page['10.11.1'])).toBe('10.11.1=C')
+    })
+
     it('10.12 : un texte rogné par l’espacement dans un menu ouvert est relevé', async () => {
       const ko = await run('menu-ouvert-espacement-ko', ['10.12.1'])
       expect(ko['10.12.1']?.status).toBe('NC')
