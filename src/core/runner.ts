@@ -218,7 +218,7 @@ async function auditPage(
   const open = async (options: PageOptions = {}): Promise<Page> => {
     const context = await newContext(browser, options)
     contexts.push(context)
-    const { page } = await openPage(context, url)
+    const { page } = await openPage(context, url, { scripts: options.javaScriptEnabled !== false })
     return page
   }
 

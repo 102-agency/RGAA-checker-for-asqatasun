@@ -218,7 +218,35 @@
     })
   }
 
+  /*
+   * Écouteurs déclarés avec addEventListener, par cible : repère les éléments rendus
+   * « cliquables » par script (7.3.1). Le relevé est posé avant les scripts de la page ;
+   * l'écouteur est enregistré tel quel, sans changer son comportement.
+   */
+  const listeners = new WeakMap()
+  const nativeAdd = EventTarget.prototype.addEventListener
+  EventTarget.prototype.addEventListener = function (type, ...rest) {
+    try {
+      let types = listeners.get(this)
+      if (!types) listeners.set(this, (types = new Set()))
+      types.add(String(type))
+    } catch {
+      // cible sans identité (ne devrait pas arriver) : le relevé est facultatif
+    }
+    return nativeAdd.call(this, type, ...rest)
+  }
+
+  /** Types d'événements écoutés sur l'élément (addEventListener, attribut `on…` ou propriété). */
+  function listenersOf(el) {
+    const types = new Set(listeners.get(el) || [])
+    for (const name of ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'keydown', 'keyup']) {
+      if (typeof el['on' + name] === 'function') types.add(name)
+    }
+    return Array.from(types)
+  }
+
   window.__rgaa = {
+    listenersOf,
     norm,
     selector,
     snippet,

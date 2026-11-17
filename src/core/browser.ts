@@ -142,15 +142,24 @@ export async function newContext(
 export async function openPage(
   context: BrowserContext,
   url: string,
+  options: { scripts?: boolean } = {},
 ): Promise<{ page: Page; response: Response | null }> {
   const page = await context.newPage()
   const response = await page.goto(url, { waitUntil: 'load', timeout: NAVIGATION_TIMEOUT_MS })
-  await settle(page)
+  await settle(page, options.scripts ?? true)
   return { page, response }
 }
 
-export async function settle(page: Page): Promise<void> {
+/**
+ * `scripts: false` : JavaScript est désactivé dans le contexte. Les minuteries de la page ne
+ * tournent plus (un `setTimeout` n'aboutit jamais) : le parcours de défilement est alors omis.
+ */
+export async function settle(page: Page, scripts = true): Promise<void> {
   await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {})
+  if (!scripts) {
+    await page.waitForTimeout(150)
+    return
+  }
   await page.evaluate(async () => {
     await document.fonts.ready
     const step = Math.max(200, window.innerHeight - 100)

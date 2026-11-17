@@ -41,6 +41,8 @@ export interface RgaaInPage {
   contrast(a: number[], b: number[]): number
   /** Éléments atteignables à la tabulation, dans l'ordre du DOM. */
   tabbables(root?: ParentNode): HTMLElement[]
+  /** Types d'événements écoutés par l'élément (addEventListener, attributs et propriétés `on…`). */
+  listenersOf(el: Element): string[]
   /** À appeler après une modification du DOM, avant `accName` / `role`. */
   resetTree(): void
 }
@@ -48,5 +50,15 @@ export interface RgaaInPage {
 declare global {
   interface Window {
     __rgaa: RgaaInPage
+    /** axe-core, injecté avant les scripts de la page (partie de l'API utilisée par l'outil). */
+    axe?: {
+      getRules(): { ruleId: string }[]
+      run(
+        context: Document,
+        options: { runOnly: { type: 'rule'; values: string[] }; resultTypes: string[] },
+      ): Promise<{
+        violations: { id: string; help: string; nodes: { target: string[]; html: string }[] }[]
+      }>
+    }
   }
 }
