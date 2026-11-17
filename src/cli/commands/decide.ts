@@ -32,6 +32,11 @@ function readAnswers(file: string): Answer[] {
   })
 }
 
+function savedMessage(saved: number, dir: string): string {
+  if (saved === 0) return 'Aucune décision enregistrée.'
+  return `${plural(saved, 'décision enregistrée', 'décisions enregistrées')} dans ${dir}. Relancer l'audit pour les appliquer.`
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -116,9 +121,7 @@ async function interactive(
   } finally {
     rl.close()
   }
-  process.stdout.write(
-    `\n${plural(saved, 'décision enregistrée', 'décisions enregistrées')} dans ${store.dir}. Relancer l'audit pour les appliquer.\n`,
-  )
+  process.stdout.write(`\n${savedMessage(saved, store.dir)}\n`)
   return EXIT.OK
 }
 
@@ -181,8 +184,6 @@ export async function commandDecide(args: string[]): Promise<number> {
       `${paint(style, 'green', '✓')} ${result.item.key} : « ${result.decision.answer} » enregistrée (${result.item.topic}).\n`,
     )
   }
-  process.stdout.write(
-    `${plural(saved, 'décision enregistrée', 'décisions enregistrées')} dans ${store.dir}. Relancer l'audit pour les appliquer.\n`,
-  )
+  process.stdout.write(`${savedMessage(saved, store.dir)}\n`)
   return saved < answers.length ? EXIT.USAGE : EXIT.OK
 }
