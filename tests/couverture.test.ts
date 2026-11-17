@@ -12,6 +12,12 @@ describe('Couverture du référentiel', () => {
     expect(catalog.criteria.size).toBe(106)
   })
 
+  it('chacun des 258 tests du référentiel est pris en charge par une vérification', () => {
+    expect(
+      catalog.tests.filter((test) => !declared.has(test.test)).map((test) => test.test),
+    ).toEqual([])
+  })
+
   it('aucune vérification ne déclare un test hors référentiel', () => {
     expect(Array.from(declared).filter((test) => !catalog.byTest.has(test))).toEqual([])
   })

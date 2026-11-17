@@ -9,10 +9,13 @@ tous les tests qu'il sait vérifier, page par page, et **fusionne son verdict av
 export CSV d'Asqatasun** de la page. Une page n'est à 100 % que si aucun test n'est en
 échec **et** qu'aucun ne reste à valider.
 
-> Couverture actuelle : thématiques 1 (images), 2 (cadres), 3 (couleurs), 8 (éléments
-> obligatoires), 10 (présentation) et 11 (formulaires). Les autres thématiques ne sont pas
-> encore vérifiées automatiquement : leurs tests sortent « Non testé » et le rapport les liste
-> explicitement. `rgaa explain <n>` indique, pour chaque critère, ce qui est automatisé.
+> Couverture : les 13 thématiques et **les 258 tests** du RGAA 4.1.2 ont une vérification. Cela
+> ne veut pas dire que tout est décidé par la machine : l'outil mesure ce qui se mesure et
+> **pose une question de jugement** pour le reste (transcription pertinente, titre explicite,
+> intitulé de lien parlant…). Un test qui dépend du sens d'un contenu sort « À valider » tant
+> que personne n'a répondu. `rgaa explain <n>` indique, pour chaque critère, ce qui est mesuré
+> et ce qui est jugé. Les vérifications des thématiques 4, 5, 6, 7, 9, 12 et 13 sont récentes et
+> n'ont été éprouvées que sur des pages-témoins : lire leurs constats avec un œil critique.
 
 ## Installation
 
