@@ -219,6 +219,15 @@ describe('rapport texte (terminal)', () => {
     expect(text).not.toContain('pwned\u0007')
   })
 
+  it('les questions en attente disent ce qui est jugé, pas seulement la question générique', () => {
+    const text = renderText(report, catalog, { style, detail: 'problemes' })
+    expect(text).toContain('Par sujet')
+    expect(text).toContain('frame.title')
+    expect(text).toContain('Ce titre est-il pertinent ?')
+    expect(text).toContain('title')
+    expect(text).not.toContain('Réponses :')
+  })
+
   it('--detail synthese ne détaille pas les constats', () => {
     const text = renderText(report, catalog, { style, detail: 'synthese' })
     expect(text).not.toContain('Test 1.1.1')

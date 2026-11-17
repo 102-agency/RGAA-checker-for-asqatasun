@@ -1,7 +1,7 @@
 import { ASQATASUN_LABEL } from '../core/asqatasun.ts'
 import { type Catalog, compareIds, criterionOf, themeOf } from '../core/catalog.ts'
 import type { Failure, Status } from '../core/types.ts'
-import { safeLine } from '../security/text.ts'
+import { safeLine, truncate } from '../security/text.ts'
 import {
   type Finding,
   type PageEntry,
@@ -368,6 +368,12 @@ function issuesSection(
   }
 }
 
+/** Première phrase d'une question, sans le détail des réponses admises (« Réponses : … »). */
+function questionHead(question: string, max = 110): string {
+  const head = safeLine(question.split(/ Réponses?\s*:/)[0] ?? question, 400)
+  return truncate(head, max)
+}
+
 function pendingSection(w: Writer, report: ReportDocument): void {
   w.section(`Questions à trancher (${report.pending.length})`)
   if (report.pending.length === 0) {
@@ -378,13 +384,37 @@ function pendingSection(w: Writer, report: ReportDocument): void {
     'Ces tests dépendent d’un jugement humain (pertinence d’une alternative, image décorative…). Chaque réponse est enregistrée une fois et vaut pour toutes les pages qui présentent le même contenu.',
     '  ',
   )
+
+  // Où se concentre le travail : nombre de questions par sujet.
+  const bySubject = new Map<string, number>()
+  for (const item of report.pending) bySubject.set(item.topic, (bySubject.get(item.topic) ?? 0) + 1)
+  const subjects = Array.from(bySubject).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  w.line()
+  w.line(w.paint('dim', '  Par sujet'))
+  for (const [topic, count] of subjects.slice(0, 8)) {
+    w.line(`  ${padStart(String(count), 6)}  ${safeLine(topic, 60)}`)
+  }
+  if (subjects.length > 8) {
+    const rest = subjects.slice(8).reduce((sum, [, count]) => sum + count, 0)
+    w.line(w.paint('dim', `  ${padStart(String(rest), 6)}  autres sujets (${subjects.length - 8})`))
+  }
+
+  // Quelques exemples : l'empreinte, la question en une ligne, et surtout ce qui est jugé.
   const shown = report.pending.slice(0, 5)
+  w.line()
+  w.line(w.paint('dim', '  Exemples'))
   for (const item of shown) {
-    w.para(item.question, '                    ', `  ${w.paint('yellow', `? ${item.key}`)}  `)
+    const indent = '               '
+    w.para(questionHead(item.question), indent, `  ${w.paint('yellow', `? ${item.key}`)}  `)
+    for (const [name, value] of Object.entries(item.evidence).slice(0, 2)) {
+      w.line(
+        `${indent}${w.paint('dim', `${safeLine(name, 12).padEnd(10)} `)}${truncate(safeLine(value, 200), Math.max(20, w.width - indent.length - 12))}`,
+      )
+    }
     w.line(
       w.paint(
         'dim',
-        `                    tests ${item.tests.join(', ')} · ${plural(item.pages.length, 'page')}`,
+        `${indent}tests ${item.tests.slice(0, 4).join(', ')}${item.tests.length > 4 ? '…' : ''} · ${plural(item.pages.length, 'page')}`,
       ),
     )
   }
@@ -392,7 +422,9 @@ function pendingSection(w: Writer, report: ReportDocument): void {
     w.line(w.paint('dim', `  … et ${report.pending.length - shown.length} autres.`))
   }
   w.line()
-  w.line(`  Pour les voir en détail       ${w.paint('cyan', 'rgaa pending')}`)
+  w.line(
+    `  Pour les voir en détail       ${w.paint('cyan', 'rgaa pending')}  (--topic <sujet> pour filtrer)`,
+  )
   w.line(`  Pour y répondre une à une     ${w.paint('cyan', 'rgaa decide')}`)
 }
 
