@@ -155,8 +155,8 @@ suivre est `src/themes/08-elements-obligatoires.ts`, testé par
 `tests/08-elements-obligatoires.test.ts` sur les pages de `fixtures/08-elements-obligatoires/`.
 
 L'intitulé exact de chaque test, avec les cas particuliers et les notes techniques de son
-critère, est dans `assets/rgaa-4.1.2.json` (les 258 tests et 106 critères, générés depuis le PDF
-officiel par `pnpm catalog <pdf>`). Le glossaire est sur
+critère, est dans `assets/rgaa-4.1.2.json` (les 258 tests et 106 critères, générés depuis l'ODT
+officiel `RGAA-v4.1.2.odt` par `pnpm catalog`). Le glossaire est sur
 <https://accessibilite.numerique.gouv.fr/methode/glossaire/>.
 
 ```ts
