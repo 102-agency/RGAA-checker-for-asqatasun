@@ -111,6 +111,11 @@ export class DecisionStore {
     return decision
   }
 
+  /** Lecture sans effet de bord (ne compte pas la décision comme sollicitée par l'audit). */
+  peek(topic: string, key: string): Decision | undefined {
+    return this.topics.get(topic)?.get(key)
+  }
+
   /** Nombre total de décisions enregistrées. */
   get size(): number {
     let total = 0

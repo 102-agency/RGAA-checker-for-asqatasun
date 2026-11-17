@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="rgaa-jeton" content="__JETON__">
+<title>Audit RGAA — suivi en direct</title>
+<link rel="stylesheet" href="/app.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<a class="evitement" href="#contenu">Aller au contenu</a>
+<header class="entete">
+  <div class="entete-titre">
+    <h1>Audit RGAA 4.1.2 <span class="site" id="site"></span></h1>
+    <p class="etat" id="etat" role="status">Connexion…</p>
+  </div>
+  <div class="progression">
+    <progress id="progression" max="1" value="0" aria-labelledby="etat"></progress>
+    <p class="en-cours" id="en-cours"></p>
+  </div>
+</header>
+
+<nav class="vues" aria-label="Vues de l’audit">
+  <ul>
+    <li><button type="button" data-vue="questions" aria-pressed="true">À trancher <span class="compte" data-compte="questions">0</span></button></li>
+    <li><button type="button" data-vue="doutes" aria-pressed="false">Doutes <span class="compte" data-compte="doutes">0</span></button></li>
+    <li><button type="button" data-vue="constats" aria-pressed="false">Non-conformités <span class="compte" data-compte="constats">0</span></button></li>
+    <li><button type="button" data-vue="tranchees" aria-pressed="false">Tranchées <span class="compte" data-compte="tranchees">0</span></button></li>
+    <li><button type="button" data-vue="pages" aria-pressed="false">Pages <span class="compte" data-compte="pages">0</span></button></li>
+    <li><button type="button" data-vue="fichiers" aria-pressed="false">Fichiers</button></li>
+  </ul>
+</nav>
+
+<main id="contenu" tabindex="-1">
+  <div class="alerte" id="alerte" role="alert" hidden></div>
+
+  <section class="bandeau" id="bandeau" hidden aria-labelledby="bandeau-titre">
+    <h2 id="bandeau-titre" class="bandeau-titre"></h2>
+    <p>Les verdicts et les taux ne tiennent compte des décisions qu’après une nouvelle analyse.</p>
+    <div class="actions">
+      <button type="button" class="bouton" id="relancer-decisions">Réauditer les pages concernées</button>
+      <button type="button" class="bouton secondaire" data-relancer="tout">Réauditer tout le site</button>
+    </div>
+  </section>
+
+  <div class="outils">
+    <label class="filtre">Filtrer
+      <input type="search" id="filtre" placeholder="test, texte, page, sélecteur…" autocomplete="off">
+    </label>
+    <button type="button" class="bouton secondaire" data-relancer="tout" id="relancer-tout">Relancer l’audit</button>
+  </div>
+
+  <section id="vue-questions" class="vue" aria-labelledby="titre-questions">
+    <h2 id="titre-questions">Questions à trancher</h2>
+    <p class="aide">L’outil n’a pas pu conclure seul. Pour chaque question : <strong>C’est un problème</strong>, <strong>Ce n’est pas un problème</strong> ou <strong>Doute</strong> (la question reste ouverte et figure dans la liste à corriger). Au clavier, dans une carte : <kbd>P</kbd>, <kbd>O</kbd>, <kbd>D</kbd>.</p>
+    <ol class="cartes" id="liste-questions"></ol>
+    <p class="vide" hidden>Aucune question pour l’instant.</p>
+  </section>
+
+  <section id="vue-doutes" class="vue" aria-labelledby="titre-doutes" hidden>
+    <h2 id="titre-doutes">Doutes maintenus</h2>
+    <p class="aide">Questions examinées mais laissées en doute : à revoir avec un expert, elles restent dans le fichier « à corriger ».</p>
+    <ol class="cartes" id="liste-doutes"></ol>
+    <p class="vide" hidden>Aucun doute maintenu.</p>
+  </section>
+
+  <section id="vue-constats" class="vue" aria-labelledby="titre-constats" hidden>
+    <h2 id="titre-constats">Non-conformités constatées</h2>
+    <p class="aide">Échecs mesurés par l’outil, avec la zone concernée encadrée en rouge.</p>
+    <ol class="cartes" id="liste-constats"></ol>
+    <p class="vide" hidden>Aucune non-conformité pour l’instant.</p>
+  </section>
+
+  <section id="vue-tranchees" class="vue" aria-labelledby="titre-tranchees" hidden>
+    <h2 id="titre-tranchees">Questions tranchées depuis l’audit</h2>
+    <p class="aide">Une réponse peut être changée tant que l’audit n’a pas été relancé.</p>
+    <ol class="cartes" id="liste-tranchees"></ol>
+    <p class="vide" hidden>Aucune question tranchée depuis l’audit.</p>
+  </section>
+
+  <section id="vue-pages" class="vue" aria-labelledby="titre-pages" hidden>
+    <h2 id="titre-pages">Pages auditées</h2>
+    <div class="tableau">
+      <table>
+        <caption class="sr-only">État de chaque page : taux de conformité des critères, tests non conformes et à valider</caption>
+        <thead><tr><th scope="col">Page</th><th scope="col">État</th><th scope="col">Taux critères</th><th scope="col">Non conformes</th><th scope="col">À valider</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+        <tbody id="liste-pages"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="vue-fichiers" class="vue" aria-labelledby="titre-fichiers" hidden>
+    <h2 id="titre-fichiers">Fichiers du rapport</h2>
+    <p class="aide">Écrits à la fin de chaque analyse et après chaque décision. « À corriger » est fait pour être lu seul par une IA : exigence RGAA, élément fautif, capture, pages, et comment vérifier la correction.</p>
+    <ul class="fichiers" id="liste-fichiers"></ul>
+    <p class="vide" hidden>Les fichiers seront disponibles à la fin de l’analyse.</p>
+  </section>
+</main>
+
+<dialog class="loupe" id="loupe" aria-labelledby="loupe-titre">
+  <div class="loupe-entete">
+    <h2 id="loupe-titre">Capture</h2>
+    <button type="button" class="bouton secondaire" id="loupe-fermer">Fermer</button>
+  </div>
+  <img id="loupe-image" alt="">
+</dialog>
+<div class="sr-only" id="annonces" aria-live="polite"></div>
+</body>
+</html>

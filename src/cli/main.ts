@@ -6,6 +6,7 @@ import { commandDecide } from './commands/decide.ts'
 import { commandExplain } from './commands/explain.ts'
 import { commandPending } from './commands/pending.ts'
 import { commandReport } from './commands/report.ts'
+import { commandServe } from './commands/serve.ts'
 import { MAIN_HELP } from './help.ts'
 import { toolVersion } from './options.ts'
 
@@ -15,6 +16,7 @@ const COMMANDS: Record<string, (args: string[]) => number | Promise<number>> = {
   pending: commandPending,
   decide: commandDecide,
   explain: commandExplain,
+  serve: commandServe,
 }
 
 export async function main(argv: string[]): Promise<number> {

@@ -8,10 +8,14 @@ Utilisation
   rgaa pending [options]                  liste les questions de jugement en attente
   rgaa decide [<empreinte> <réponse>]     enregistre une décision (interactif sans argument)
   rgaa explain <test|critère|thématique>  explique un test du RGAA
+  rgaa serve [options]                    interface web locale sur le dernier rapport
+  rgaa mcp [options]                      serveur MCP (stdio) pour piloter l'outil depuis une IA
   rgaa --version | --help
 
 Exemples
   rgaa audit http://localhost:3000
+  rgaa audit http://localhost:3000 --serve        suivi en direct dans le navigateur
+  rgaa audit http://localhost:3000 /contact --merge   réaudite une page après correction
   rgaa audit https://www.exemple.fr / /contact --theme 1,3 --detail tout
   rgaa audit http://localhost:3000 --asqatasun ./exports-asqatasun --strict
   rgaa report --page /contact
@@ -43,6 +47,18 @@ Données
   --decisions <dossier>  décisions de jugement (défaut ./rgaa-decisions)
   --out <dossier>        dossier du rapport (défaut ./rgaa-report)
 
+Interface et captures
+  --serve                ouvre l'interface web locale (127.0.0.1) : résultats en direct,
+                         captures, boutons « problème / pas un problème / doute » ;
+                         elle reste ouverte après l'audit (Ctrl+C pour quitter)
+  --port <n>             port de l'interface (défaut 4747, un autre s'il est pris)
+  --by <nom>             auteur des décisions prises dans l'interface
+  --captures <mode>      tout (défaut) | doutes | aucune : captures encadrées des zones
+                         en échec et des questions
+  --merge                fusionne le résultat dans le rapport existant de --out (mêmes
+                         pages remplacées, autres pages conservées) : boucle « corriger,
+                         réauditer la page »
+
 Affichage
   --detail <niveau>      synthese | problemes (défaut) | tout
   --page <chemin>        affiche le détail test par test de cette page (répétable)
@@ -58,10 +74,31 @@ Exécution
   --trace                affiche les vérifications lentes (diagnostic)
 
 Fichiers produits dans --out
-  rapport.html   rapport complet, à ouvrir dans un navigateur
-  rapport.md     le même, en Markdown
-  rapport.json   données brutes (relues par report, pending et decide)
-  preuves/       captures des éléments sur lesquels une question est posée
+  a-corriger.md          non-conformités et doutes, lisible seul par un humain ou une IA
+  a-corriger.json        le même, structuré pour une IA
+  resultats-complets.md  tous les tests, tous les verdicts (positifs, négatifs, doutes)
+  rapport.html           rapport complet, à ouvrir dans un navigateur
+  rapport.md             le même, en Markdown
+  rapport.json           données brutes (relues par report, pending, decide, serve, mcp)
+  preuves/               captures encadrées des zones en échec et des questions
+`
+
+export const SERVE_HELP = `rgaa serve [options]
+
+Ouvre l'interface web locale sur le dernier rapport : non-conformités avec
+captures, questions à trancher (problème / pas un problème / doute), pages.
+Les décisions sont enregistrées dans le dossier des décisions du rapport ;
+l'interface peut relancer l'audit (tout le site, ou les pages concernées).
+
+  --out <dossier>        dossier du rapport (défaut ./rgaa-report)
+  --port <n>             port (défaut 4747, un autre s'il est pris)
+  --by <nom>             auteur des décisions (défaut « interface web »)
+  --concurrency <n>      pages en parallèle lors d'une relance (défaut 2)
+  --captures <mode>      tout (défaut) | doutes | aucune
+  --browser-libs <dir>   bibliothèques système pour Chromium (aussi : RGAA_BROWSER_LIBS)
+  --no-sandbox           désactive le bac à sable de Chromium (déconseillé)
+
+L'interface n'écoute que sur 127.0.0.1 et exige un jeton tiré au lancement.
 `
 
 export const REPORT_HELP = `rgaa report [options]
@@ -96,6 +133,9 @@ pages qui présentent le même contenu ; relancer l'audit pour l'appliquer.
   rgaa decide                                   mode interactif : question par question
   rgaa decide 3f2a9c81d0e4 pass --reason "…"     une réponse
   rgaa decide --file reponses.json              plusieurs : [{ "key", "answer", "reason", "by"? }]
+
+  Réponse « doute » admise pour toute question : elle reste ouverte et figure
+  dans a-corriger.md avec la justification.
 
   --reason <texte>       justification (obligatoire)
   --by <nom>             auteur de la décision (défaut « humain »)

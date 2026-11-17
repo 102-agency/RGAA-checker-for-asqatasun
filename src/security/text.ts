@@ -62,6 +62,16 @@ export function escapeMarkdown(value: unknown): string {
   )
 }
 
+/**
+ * Échappement Markdown léger, pour un texte placé après une puce ou un titre :
+ * seuls les caractères qui peuvent créer du HTML, un lien, de l'emphase, du code
+ * ou une cellule de tableau sont échappés. Le texte reste lisible tel quel
+ * (fichiers lus par une IA), et inerte une fois rendu.
+ */
+export function escapeInline(value: unknown): string {
+  return safeLine(value).replace(/[\\`*_[\]<>|&]/g, (char) => `\\${char}`)
+}
+
 /** Code en ligne Markdown : délimiteur plus long que toute suite d'accents graves du contenu. */
 export function markdownCode(value: unknown): string {
   const text = safeLine(value)
