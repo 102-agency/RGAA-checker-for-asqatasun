@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Tableaux corrects</title></head>
+<body><main>
+<h1>Tableaux corrects</h1>
+<table>
+  <caption>Tarifs de la cantine par tranche</caption>
+  <thead><tr><th scope="col">Tranche</th><th scope="col">Prix</th></tr></thead>
+  <tbody><tr><th scope="row">A</th><td>1 €</td></tr><tr><th scope="row">B</th><td>2 €</td></tr></tbody>
+</table>
+<table>
+  <caption>Horaires d'ouverture</caption>
+  <tr><th>Jour</th><th>Horaire</th></tr>
+  <tr><td>Lundi</td><td>9 h</td></tr>
+</table>
+<table role="presentation"><tr><td>Colonne gauche</td><td>Colonne droite</td></tr></table>
+<table id="complexe" summary="Heures d'ouverture par service et par trimestre.">
+  <caption>Ouverture des services</caption>
+  <tr><td></td><th id="t1" colspan="2">Trimestre 1</th></tr>
+  <tr><td></td><th id="m1" >Matin</th><th id="s1">Soir</th></tr>
+  <tr><th id="mairie">Mairie</th><td headers="t1 m1 mairie">9 h</td><td headers="t1 s1 mairie">17 h</td></tr>
+</table>
+</main></body></html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>Tableaux fautifs</title></head>
+<body><main>
+<h1>Tableaux fautifs</h1>
+<table id="sans-en-tete" summary="inutile">
+  <caption></caption>
+  <tr><td>Nom</td><td>Prix</td></tr>
+  <tr><td>Pain</td><td>1 €</td></tr>
+</table>
+<table id="faux-th"><caption>Prix du marché</caption>
+  <tr><td style="font-weight:700">Nom</td><td style="font-weight:700">Prix</td></tr>
+  <tr><td>Pain</td><td>1 €</td></tr>
+</table>
+<table id="scope-faux">
+  <caption>Notes</caption>
+  <tr><th scope="row">Élève</th><th scope="col">Maths</th></tr>
+  <tr><th>Léa</th><td>15</td></tr>
+  <tr><th scope="col">Max</th><td>12</td></tr>
+</table>
+<table id="mise-en-forme-fautive"><caption>Mise en page</caption><tr><th>Gauche</th><td>Droite</td></tr></table>
+<table id="forme-sans-role"><tr><td>Colonne A</td><td>Colonne B</td></tr></table>
+<table id="complexe-sans-id">
+  <caption>Complexe</caption>
+  <tr><td></td><th colspan="2">Trimestre 1</th></tr>
+  <tr><td></td><th scope="col">Matin</th><th scope="col">Soir</th></tr>
+  <tr><th scope="row">Mairie</th><td>9 h</td><td>17 h</td></tr>
+</table>
+<table aria-labelledby="inexistant"><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table><caption>Tableau</caption><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>
+<table id="ambigu"><tr><td>Cellule un</td><td>Cellule deux</td></tr><tr><td>Cellule trois</td><td>Cellule quatre</td></tr></table>
+</main></body></html>
