@@ -1,0 +1,4 @@
+# Scripts d'installation : refusés par défaut, y compris ceux listés ici.
+# esbuild (via tsx et vitest) fonctionne sans son script de vérification.
+allowBuilds:
+  esbuild: false

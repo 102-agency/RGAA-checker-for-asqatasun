@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+rgaa-report/
+graphify-out/
+*.log
+.env
+.env.*

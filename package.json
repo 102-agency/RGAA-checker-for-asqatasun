@@ -1,0 +1,45 @@
+{
+  "name": "rgaa-checker",
+  "version": "1.0.0",
+  "description": "Audit RGAA 4.1.2 (niveau AA) en vrai navigateur, en ligne de commande : statue sur les tests qu'Asqatasun laisse « Pré-qualifié » ou « Non testé » et fusionne les deux verdicts.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "rgaa": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.build.json",
+    "dev": "tsx src/cli.ts",
+    "rgaa": "node dist/cli.js",
+    "check-types": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run --project unit",
+    "test:fixtures": "vitest run --project fixtures",
+    "test:all": "vitest run",
+    "verify": "pnpm check-types && pnpm lint && pnpm test",
+    "browser:install": "playwright install chromium",
+    "catalog": "uv run --with pypdf python -I scripts/build-catalog.py"
+  },
+  "dependencies": {
+    "axe-core": "4.14.0",
+    "parse5": "8.1.0",
+    "playwright": "1.64.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.5",
+    "@types/node": "24.19.2",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  },
+  "packageManager": "pnpm@12.18.0"
+}
