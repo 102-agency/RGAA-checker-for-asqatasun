@@ -53,21 +53,13 @@ function criterionBlock(
   return lines
 }
 
-export function commandExplain(args: string[]): number {
-  const { values, positionals } = parseCommand('explain', args, {
-    color: { type: 'boolean' },
-    help: { type: 'boolean', short: 'h', default: false },
-  })
-  if (values.help || positionals.length === 0) {
-    process.stdout.write(EXPLAIN_HELP)
-    return values.help ? EXIT.OK : EXIT.USAGE
-  }
+/** Texte d'explication de tests, critères ou thématiques (partagé avec le serveur MCP). */
+export function explainLines(ids: readonly string[], style: Style): string[] {
   const catalog = loadCatalog()
-  const style = outputStyle(process.stdout, values.color)
   const covered = automated()
   const lines: string[] = []
 
-  for (const id of positionals) {
+  for (const id of ids) {
     if (/^\d{1,2}\.\d{1,2}\.\d{1,2}$/.test(id) && catalog.byTest.has(id)) {
       const test = catalog.byTest.get(id) as CatalogTest
       lines.push(...criterionBlock(catalog, test.criterion, style, covered).filter(Boolean))
@@ -106,6 +98,20 @@ export function commandExplain(args: string[]): number {
   }
   lines.push(paint(style, 'dim', `Référentiel : ${CRITERIA_URL}`))
   lines.push(paint(style, 'dim', `Glossaire   : ${GLOSSARY}`))
+  return lines
+}
+
+export function commandExplain(args: string[]): number {
+  const { values, positionals } = parseCommand('explain', args, {
+    color: { type: 'boolean' },
+    help: { type: 'boolean', short: 'h', default: false },
+  })
+  if (values.help || positionals.length === 0) {
+    process.stdout.write(EXPLAIN_HELP)
+    return values.help ? EXIT.OK : EXIT.USAGE
+  }
+  const style = outputStyle(process.stdout, values.color)
+  const lines = explainLines(positionals, style)
   process.stdout.write(`${lines.join('\n')}\n`)
   return EXIT.OK
 }

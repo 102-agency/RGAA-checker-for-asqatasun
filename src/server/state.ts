@@ -122,7 +122,7 @@ export class LiveState {
   private readonly listeners = new Set<(event: UiEvent) => void>()
 
   constructor(
-    readonly site: string,
+    public site: string,
     private readonly catalog: Catalog,
     private decisions: DecisionStore,
     /** Appelé après chaque décision (réécriture des fichiers « à corriger »). */
@@ -131,6 +131,24 @@ export class LiveState {
 
   get running(): boolean {
     return this.status === 'en-cours'
+  }
+
+  /** Change de site (serveur MCP auditant plusieurs sites) : l'état repart de zéro. */
+  retarget(site: string, decisions: DecisionStore): void {
+    if (this.running) throw new Error('Un audit est en cours.')
+    this.site = site
+    this.decisions = decisions
+    this.status = 'en-attente'
+    this.report = undefined
+    this.plan = []
+    this.done = 0
+    this.pathOf.clear()
+    this.issues.clear()
+    this.questions.clear()
+    this.judgements.clear()
+    this.pages.clear()
+    this.decided.clear()
+    this.emit({ type: 'recharger' })
   }
 
   get lastReport(): ReportDocument | undefined {

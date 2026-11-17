@@ -153,3 +153,29 @@ du RGAA 4.1.2, et indique si l'outil vérifie automatiquement le test.
   rgaa explain 1         une thématique et ses critères
   --no-color             sans couleurs
 `
+
+export const MCP_HELP = `rgaa mcp [options]
+
+Serveur MCP (Model Context Protocol) sur l'entrée et la sortie standard :
+une IA peut auditer un site ou quelques pages, lire ce qu'il faut corriger,
+trancher les questions, voir les captures, puis réauditer après correction.
+L'outil n'appelle aucun modèle : le serveur ne fait que l'exposer.
+
+Outils : auditer_site, auditer_pages, etat_audit, lire_a_corriger,
+resultats_complets, trancher_question, voir_capture, expliquer_rgaa.
+
+  --sites <url>          sites autorisés (répétable, ou liste séparée par des virgules) ;
+                         sans cette option, tout site http(s) peut être audité
+  --out <dossier>        dossier du rapport (défaut ./rgaa-report)
+  --decisions <dossier>  dossier des décisions (défaut ./rgaa-decisions)
+  --by <nom>             auteur des décisions prises par l'IA (défaut « IA (MCP) »)
+  --serve                ouvre aussi l'interface web locale pour suivre l'IA en direct
+  --port <n>             port de l'interface (défaut 4747)
+  --concurrency <n>      pages en parallèle (défaut 2)
+  --captures <mode>      tout (défaut) | doutes | aucune
+  --browser-libs <dir>   bibliothèques système pour Chromium (aussi : RGAA_BROWSER_LIBS)
+  --no-sandbox           désactive le bac à sable de Chromium (déconseillé)
+
+Exemple de déclaration (Claude Code, .mcp.json) :
+  { "mcpServers": { "rgaa": { "command": "rgaa", "args": ["mcp", "--sites", "http://localhost:3000"] } } }
+`

@@ -4,6 +4,7 @@ import { safeText } from '../security/text.ts'
 import { commandAudit } from './commands/audit.ts'
 import { commandDecide } from './commands/decide.ts'
 import { commandExplain } from './commands/explain.ts'
+import { commandMcp } from './commands/mcp.ts'
 import { commandPending } from './commands/pending.ts'
 import { commandReport } from './commands/report.ts'
 import { commandServe } from './commands/serve.ts'
@@ -17,6 +18,7 @@ const COMMANDS: Record<string, (args: string[]) => number | Promise<number>> = {
   decide: commandDecide,
   explain: commandExplain,
   serve: commandServe,
+  mcp: commandMcp,
 }
 
 export async function main(argv: string[]): Promise<number> {

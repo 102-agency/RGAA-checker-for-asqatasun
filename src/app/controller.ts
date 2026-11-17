@@ -23,14 +23,14 @@ export class AuditController {
   private current: Promise<SessionResult> | undefined
 
   constructor(
-    readonly config: SessionConfig,
+    private settings: SessionConfig,
     private readonly hooks: SessionHooks = {},
   ) {
     this.catalog = loadCatalog()
     this.state = new LiveState(
-      config.base.href,
+      settings.base.href,
       this.catalog,
-      new DecisionStore(config.decisionsDir),
+      new DecisionStore(settings.decisionsDir),
       () => this.rewriteToFix(),
     )
   }
@@ -39,13 +39,31 @@ export class AuditController {
     return this.current !== undefined
   }
 
+  get config(): SessionConfig {
+    return this.settings
+  }
+
+  /**
+   * Change la configuration entre deux audits (serveur MCP). Un autre site, ou
+   * un autre dossier de décisions, remet l'état en direct à zéro.
+   */
+  reconfigure(config: SessionConfig): void {
+    if (this.current) throw new UserError('Un audit est déjà en cours : attendre sa fin.')
+    const retarget =
+      config.base.origin !== this.settings.base.origin ||
+      config.decisionsDir !== this.settings.decisionsDir ||
+      config.outDir !== this.settings.outDir
+    this.settings = config
+    if (retarget) this.state.retarget(config.base.href, new DecisionStore(config.decisionsDir))
+  }
+
   /** Après une décision : les fichiers « à corriger » la reflètent sans attendre la relance. */
   private rewriteToFix(): void {
     const report = this.state.lastReport
     if (!report) return
     const store = this.state.decisionStore
     try {
-      writeToFix(this.config.outDir, report, this.catalog, {
+      writeToFix(this.settings.outDir, report, this.catalog, {
         decisions: (topic, key) => store.peek(topic, key),
       })
     } catch (error) {
@@ -65,13 +83,13 @@ export class AuditController {
     } = {},
   ): Promise<SessionResult> {
     if (this.current) throw new UserError('Un audit est déjà en cours : attendre sa fin.')
-    const decisionStore = new DecisionStore(this.config.decisionsDir)
+    const decisionStore = new DecisionStore(this.settings.decisionsDir)
     this.state.begin(decisionStore)
     const partial = options.paths !== undefined
     const config: SessionConfig = {
-      ...this.config,
-      paths: partial ? (options.paths ?? []) : this.config.paths,
-      merge: partial ? true : this.config.merge,
+      ...this.settings,
+      paths: partial ? (options.paths ?? []) : this.settings.paths,
+      merge: partial ? true : this.settings.merge,
       decisionStore,
     }
     const run = runAuditSession(config, {
