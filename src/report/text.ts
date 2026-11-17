@@ -331,7 +331,13 @@ function issuesSection(
         w.para(catalog.byTest.get(issue.test)?.title ?? '', '        ', '        ', 'dim')
         const shown = issue.findings.slice(0, maxFindings)
         shown.forEach((finding, index) => {
-          failureLines(w, finding, index + 1, '        ', multiPage)
+          failureLines(
+            w,
+            finding,
+            index + 1,
+            '        ',
+            multiPage && finding.pages.length !== issue.pages.length,
+          )
         })
         const hidden = issue.findings.length - shown.length
         if (hidden > 0) {
