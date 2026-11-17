@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="utf-8"><title>Piège clavier</title>
+<style>
+.skip{position:absolute;left:-999px;top:0} .skip:focus{left:8px;top:8px;background:#fff;padding:4px}
+header{height:90px} nav ul{display:flex;gap:16px;list-style:none;margin:0;padding:0}
+
+</style></head>
+<body>
+<main><h1>Piège</h1><a href="ok-a.html">Avant</a> <input id="trap" aria-label="Champ piège" onkeydown="if(event.key==='Tab')event.preventDefault()"> <a href="ok-b.html">Après</a></main>
+</body></html>

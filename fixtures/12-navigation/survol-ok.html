@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="utf-8"><title>Menu au survol accessible</title>
+<style>
+.skip{position:absolute;left:-999px;top:0} .skip:focus{left:8px;top:8px;background:#fff;padding:4px}
+header{height:90px} nav ul{display:flex;gap:16px;list-style:none;margin:0;padding:0}
+.s{display:none;position:absolute;background:#fff}.sub:hover .s,.sub:focus-within .s{display:block}
+</style></head>
+<body>
+<header><nav aria-label="Menu"><ul>
+<li class="sub"><a href="ok-a.html">Rubrique</a><ul class="s"><li><a href="ok-b.html">Sous-rubrique</a></li></ul></li>
+<li><a href="ok-b.html">Agenda</a></li></ul></nav></header><main><h1>Survol</h1></main>
+</body></html>
