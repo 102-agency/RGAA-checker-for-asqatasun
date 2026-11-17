@@ -315,6 +315,12 @@ export async function audit(options: AuditOptions): Promise<AuditResult> {
     options.urls.length,
   )
 
+  const fillResults = (entry: { report: PageReport; outcomes: Map<string, OutcomeState> }) => {
+    for (const [test, outcome] of entry.outcomes) {
+      if (filter(test)) entry.report.results[test] = outcome.result()
+    }
+  }
+
   let next = 0
   let done = 0
   let browser = options.browser
@@ -349,6 +355,8 @@ export async function audit(options: AuditOptions): Promise<AuditResult> {
         result = await auditPage(browser, url, pageChecks, shared, records, options.trace)
       }
       audited[index] = result
+      // Résultats de la page (hors vérifications inter-pages, encore à venir) : `onPage` les lit.
+      fillResults(result)
       done += 1
       options.onPage?.(result.report, done, options.urls.length)
     }
@@ -389,11 +397,8 @@ export async function audit(options: AuditOptions): Promise<AuditResult> {
     }
   }
 
-  for (const entry of audited) {
-    for (const [test, outcome] of entry.outcomes) {
-      if (filter(test)) entry.report.results[test] = outcome.result()
-    }
-  }
+  // Les vérifications inter-pages ont pu modifier des résultats : on les relit tous.
+  for (const entry of audited) fillResults(entry)
 
   return {
     pages: audited.map((entry) => entry.report),
