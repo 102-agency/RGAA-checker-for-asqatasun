@@ -237,3 +237,9 @@ fixtures/, tests/       pages-témoins et tests
   `rgaa explain`, et les jugements enregistrés valent ce que vaut la personne qui les a rendus
   (le fichier de décisions garde l'auteur, la date et la justification de chacun).
 - L'indicateur de développement de Next.js est retiré de la page avant l'audit.
+- **Faux positifs connus.** Un site qui met en page par animation peut déclencher des constats
+  à tort : sections à défilement horizontal épinglé (texte « rogné » à 200 % ou à 320 px alors qu'il
+  est atteint en défilant), contenus révélés au défilement dont l'état diffère entre la page avec et
+  sans styles (10.2.1). L'outil ne masque pas ces cas : le constat porte l'élément et son code,
+  à confirmer à la main. Les calques décoratifs `aria-hidden` (lettres séparées d'un effet de
+  survol) sont, eux, reconnus et ne comptent ni comme texte rogné ni comme texte de la page.
