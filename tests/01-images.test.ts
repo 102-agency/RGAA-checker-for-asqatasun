@@ -70,9 +70,9 @@ const statuses = (results: Results, ...tests: string[]) =>
   Object.fromEntries(tests.map((test) => [test, results[test]?.status]))
 
 describe('Thématique 1 — déclaration', () => {
-  it('statue sur les 58 tests de la thématique', () => {
+  it('statue sur les 59 tests de la thématique', () => {
     const declared = new Set(checks.flatMap((check) => check.tests))
-    expect(declared.size).toBe(58)
+    expect(declared.size).toBe(59)
     for (const criterion of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
       expect(Array.from(declared).some((test) => test.startsWith(`1.${criterion}.`))).toBe(true)
     }
