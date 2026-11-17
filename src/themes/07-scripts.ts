@@ -304,7 +304,8 @@ const handlers = defineCheck(['7.3.1'], async (ctx, t) => {
         ref: ref(el),
         name: norm(accName(el) || el.textContent).slice(0, 60),
         evidence: types.length > 0 ? types : ['curseur « main » sans écouteur repéré'],
-        confirmed: types.length > 0,
+        // Seul `click` est une action certaine : mousedown, pointerdown ou touchstart servent aussi à des effets.
+        confirmed: types.includes('click'),
       })
     }
     return found

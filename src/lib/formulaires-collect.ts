@@ -281,7 +281,9 @@ export function collectForms(withTexts: boolean): FormsSnapshot {
 
   function buttonText(btn: Element): string {
     if (btn.localName === 'input') return norm(btn.getAttribute('value'))
-    return textOf(btn, { visibleOnly: true, skipAriaHidden: false })
+    // Lettres séparées d'un effet de survol (`aria-hidden`) : leur texte, doublé, n'est pas l'intitulé du
+    // bouton. Seul le texte lu par les technologies d'assistance se compare au nom accessible.
+    return textOf(btn, { visibleOnly: true, skipAriaHidden: true })
   }
 
   function adjacency(

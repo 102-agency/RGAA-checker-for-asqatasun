@@ -20,6 +20,8 @@ interface LinkData {
   name: string
   /** Texte réellement visible dans le lien (sans le texte réservé aux lecteurs d'écran). */
   label: string
+  /** Le même, sans les sous-arbres `aria-hidden` (lettres doublées d'un effet) : seul texte comparable au nom. */
+  comparable: string
   /** Destination, sans chaîne de requête superflue : sert à comparer les liens entre eux. */
   destination: string
   /** Texte de l'élément qui porte le lien (item, paragraphe, cellule, titre) : son contexte. */
@@ -88,7 +90,7 @@ async function collectLinks(page: import('playwright').Page): Promise<LinkData[]
     const { ref, norm, isRendered, isVisible, isHiddenFromAT, accName } = window.__rgaa
 
     /** Texte visible : exclut les nœuds rognés (`sr-only`) et les sous-arbres non rendus. */
-    const visibleLabel = (root: Element): string => {
+    const visibleLabel = (root: Element, skipAriaHidden = false): string => {
       let out = ''
       const walk = (node: Node) => {
         if (node.nodeType === 3) {
@@ -98,6 +100,7 @@ async function collectLinks(page: import('playwright').Page): Promise<LinkData[]
         }
         if (!(node instanceof Element) || !isRendered(node)) return
         if (['script', 'style', 'noscript', 'template'].includes(node.localName)) return
+        if (skipAriaHidden && node.getAttribute('aria-hidden') === 'true') return
         const block = getComputedStyle(node).display !== 'inline'
         if (block) out += ' '
         for (const child of node.childNodes) walk(child)
@@ -138,6 +141,7 @@ async function collectLinks(page: import('playwright').Page): Promise<LinkData[]
         kind,
         name: accName(el),
         label,
+        comparable: visibleLabel(el, true),
         destination: destinationOf(el),
         context: around === norm(el.textContent) ? '' : around.slice(0, 160),
         ref: ref(el),
@@ -187,20 +191,21 @@ const links = defineCheck(
       }
 
       // 6.1.5 — l'intitulé visible figure dans le nom accessible.
-      if (link.label !== '') {
+      // Texte visible uniquement décoratif (`aria-hidden`) : le nom vient d'ailleurs, rien à comparer.
+      if (link.comparable !== '') {
         t('6.1.5').applicable()
-        const wanted = compact(link.label)
+        const wanted = compact(link.comparable)
         if (wanted === '') {
           // Le libellé visible n'est qu'un symbole (« > », « × », « + ») : il se lit selon sa fonction.
           await t('6.1.5').judgePass({
             topic: 'link.symbol',
-            question: `Le libellé visible « ${link.label} » est un symbole : le nom accessible « ${link.name} » exprime-t-il la fonction de ce symbole ?`,
-            evidence: { label: link.label, name: link.name },
+            question: `Le libellé visible « ${link.comparable} » est un symbole : le nom accessible « ${link.name} » exprime-t-il la fonction de ce symbole ?`,
+            evidence: { label: link.comparable, name: link.name },
             ref: link.ref,
           })
         } else if (!compact(link.name).includes(wanted)) {
           t('6.1.5').fail(
-            `Le nom accessible « ${link.name} » ne contient pas l’intitulé visible « ${link.label} ».`,
+            `Le nom accessible « ${link.name} » ne contient pas l’intitulé visible « ${link.comparable} ».`,
             link.ref,
           )
         }

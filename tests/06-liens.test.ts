@@ -57,4 +57,10 @@ describe('Thématique 6 — liens', () => {
     })
     expect(messages(refused['6.1.1']?.failures)).toContain('Cliquez ici')
   })
+
+  it('les lettres doublées d’un effet (aria-hidden) ne se comparent pas au nom accessible', async () => {
+    const page = await bench.audit(checks, `${DIR}/lettres-doublees.html`)
+    expect(page['6.1.5']?.status, JSON.stringify(page['6.1.5'])).toBe('NA')
+    expect(page['6.1.1']?.status).toBe('C')
+  })
 })

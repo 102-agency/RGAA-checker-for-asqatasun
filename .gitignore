@@ -9,3 +9,4 @@ graphify-out/
 
 # Marqueur de provenance Windows (fichiers déposés depuis WSL)
 *:Zone.Identifier
+audits/
