@@ -5,15 +5,23 @@ import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { answerGroups, answerMeaning, isAdmitted } from '../../src/core/answers.ts'
+import { cookieInputs, parseCookie, resolveAuth } from '../../src/core/auth.ts'
 import { loadCatalog } from '../../src/core/catalog.ts'
 import { type Decision, DecisionStore } from '../../src/core/decisions.ts'
 import type { AuditResult } from '../../src/core/runner.ts'
 import type { PageReport, TestResult } from '../../src/core/types.ts'
 import { serveMcp } from '../../src/mcp/protocol.ts'
-import { RgaaTools } from '../../src/mcp/tools.ts'
-import { buildToFix, renderFullResults, renderToFixMarkdown } from '../../src/report/ai.ts'
+import { type DecideMode, RgaaTools, toolsFor } from '../../src/mcp/tools.ts'
+import {
+  buildToFix,
+  renderFullResults,
+  renderToFixCompact,
+  renderToFixMarkdown,
+} from '../../src/report/ai.ts'
+import { diffReports, renderDiff } from '../../src/report/diff.ts'
 import { mergeReports } from '../../src/report/merge.ts'
 import { buildReport, type ReportDocument } from '../../src/report/model.ts'
+import { remediatedTests, remediationFor } from '../../src/report/remediation.ts'
 import { writeReport } from '../../src/report/write.ts'
 import { startUiServer, type UiServer } from '../../src/server/http.ts'
 import { LiveState } from '../../src/server/state.ts'
@@ -355,6 +363,7 @@ describe('serveur MCP', () => {
       sandbox: true,
       sites: ['https://exemple.fr'],
       by: 'IA test',
+      decide: 'tout',
       serve: false,
       port: 0,
       log: () => {},
@@ -426,5 +435,276 @@ describe('serveur MCP', () => {
     expect(existsSync(join(dir, 'decisions', 'frame.title.json'))).toBe(true)
     const after = await tool('lire_a_corriger', { contenu: 'questions', format: 'json' })
     expect(after.content[0]?.text).toContain('"state": "doute-maintenu"')
+  })
+})
+
+describe('pistes de correction', () => {
+  it('ne portent que sur des tests du référentiel, avec un texte et un type', () => {
+    for (const test of remediatedTests()) {
+      expect(catalog.byTest.has(test), test).toBe(true)
+      const hint = remediationFor(test)
+      expect(hint?.text.length, test).toBeGreaterThan(20)
+      expect(['mecanique', 'a-concevoir']).toContain(hint?.kind)
+    }
+  })
+
+  it('accompagnent la non-conformité dans le JSON, le Markdown et le format compact', () => {
+    const doc = buildToFix(report([page('/'), page('/contact')]), catalog)
+    const item = doc.nonConformities.find((entry) => entry.test === '1.1.1')
+    expect(item?.remediation?.kind).toBe('mecanique')
+    expect(renderToFixMarkdown(doc)).toContain('Piste de correction (mécanique)')
+    expect(renderToFixCompact(doc)).toContain('Correction (mécanique)')
+  })
+})
+
+describe('format compact', () => {
+  it('garde de quoi corriger (élément, code, capture) en bien moins de texte', () => {
+    const doc = buildToFix(report([page('/'), page('/contact')]), catalog)
+    const compact = renderToFixCompact(doc)
+    expect(compact).toContain('body > header > img')
+    expect(compact).toContain('<img src="logo.png">')
+    expect(compact).toContain(SHOT)
+    expect(compact).toContain(KEY)
+    expect(compact.length).toBeLessThan(renderToFixMarkdown(doc).length / 2)
+  })
+
+  it('liste les questions tranchées en attente de réaudit', () => {
+    const doc = buildToFix(report([page('/')]), catalog, {
+      decisions: () => decision('pass'),
+    })
+    const compact = renderToFixCompact(doc)
+    expect(compact).toContain('TRANCHÉES, À APPLIQUER')
+    expect(compact).toContain(`${KEY} « pass »`)
+  })
+
+  it('neutralise le texte hostile venu de la page', () => {
+    const compact = renderToFixCompact(buildToFix(report([page('/')]), catalog))
+    expect(compact).not.toContain('<script>')
+  })
+
+  it('écrit une seule fois la définition d’une question répétée', () => {
+    const base = report([page('/'), page('/contact')])
+    const second = { ...base.pending[0], key: 'dddddddddddd' } as (typeof base.pending)[number]
+    base.pending.push(second)
+    const compact = renderToFixCompact(buildToFix(base, catalog))
+    expect(compact.match(/Q1 = /g)).toHaveLength(1)
+    expect(compact.match(/\(Q1\)/g)).toHaveLength(2)
+  })
+})
+
+describe('différence entre deux rapports', () => {
+  it('distingue corrigé, persistant et régression', () => {
+    const before = report([page('/', 'NC'), page('/contact', 'C')])
+    const after = report([page('/', 'C'), page('/contact', 'NC')])
+    const diff = diffReports(before, after)
+    expect(diff.fixed.map((entry) => `${entry.test} ${entry.page}`)).toEqual(['1.1.1 /'])
+    expect(diff.introduced.map((entry) => `${entry.test} ${entry.page}`)).toEqual([
+      '1.1.1 /contact',
+    ])
+    expect(diff.persisting).toEqual([])
+    const text = renderDiff(diff)
+    expect(text).toContain('NOUVELLES non-conformités')
+    expect(text).toContain('1.1.1 sur /contact')
+  })
+
+  it('compte une non-conformité inchangée comme persistante', () => {
+    const diff = diffReports(report([page('/', 'NC')]), report([page('/', 'NC')]))
+    expect(diff.persisting).toHaveLength(1)
+    expect(diff.fixed).toHaveLength(0)
+  })
+
+  it('ignore les pages absentes d’un des deux rapports', () => {
+    const diff = diffReports(report([page('/', 'NC')]), report([page('/autre', 'NC')]))
+    expect(diff.comparedPages).toBe(0)
+    expect(renderDiff(diff)).toContain('aucune page commune')
+  })
+})
+
+describe('modes de décision du serveur MCP', () => {
+  const options = (decide: DecideMode, dir: string) => ({
+    outDir: dir,
+    decisionsDir: join(dir, 'decisions'),
+    concurrency: 1,
+    captures: 'aucune' as const,
+    sandbox: true,
+    sites: ['https://exemple.fr'],
+    by: 'IA test',
+    decide,
+    serve: false,
+    port: 0,
+    log: () => {},
+  })
+
+  async function session(decide: DecideMode) {
+    const dir = mkdtempSync(join(tmpdir(), 'rgaa-mcp-mode-'))
+    const doc = report([page('/')])
+    doc.meta.decisionsDir = join(dir, 'decisions')
+    writeReport(dir, doc, catalog)
+    const input = new PassThrough()
+    const output = new PassThrough()
+    const replies = new Map<number, { result?: Record<string, unknown>; error?: unknown }>()
+    let buffer = ''
+    output.on('data', (chunk) => {
+      buffer += String(chunk)
+      for (let at = buffer.indexOf('\n'); at >= 0; at = buffer.indexOf('\n')) {
+        const message = JSON.parse(buffer.slice(0, at))
+        buffer = buffer.slice(at + 1)
+        if (typeof message.id === 'number') replies.set(message.id, message)
+      }
+    })
+    const tools = new RgaaTools(options(decide, dir))
+    const done = serveMcp(tools.handlers(), input, output)
+    let id = 0
+    const rpc = async (method: string, params: Record<string, unknown> = {}) => {
+      id += 1
+      input.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`)
+      for (let tries = 0; tries < 200 && !replies.has(id); tries++) {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+      return replies.get(id)
+    }
+    return {
+      dir,
+      rpc,
+      close: async () => {
+        input.end()
+        await done
+      },
+    }
+  }
+
+  it('« aucune » : l’outil de décision n’est pas proposé et reste refusé s’il est appelé', async () => {
+    expect(toolsFor('aucune').map((tool) => tool.name)).not.toContain('trancher_question')
+    const { rpc, close, dir } = await session('aucune')
+    const list = (await rpc('tools/list'))?.result as { tools: { name: string }[] }
+    expect(list.tools.map((tool) => tool.name)).not.toContain('trancher_question')
+    const call = await rpc('tools/call', {
+      name: 'trancher_question',
+      arguments: { empreinte: KEY, reponse: 'doute', justification: 'x' },
+    })
+    expect(call?.error).toBeDefined()
+    expect(existsSync(join(dir, 'decisions', 'frame.title.json'))).toBe(false)
+    await close()
+  })
+
+  it('« doute » : seule la réponse « doute » est enregistrée', async () => {
+    const { rpc, close, dir } = await session('doute')
+    const refused = (
+      await rpc('tools/call', {
+        name: 'trancher_question',
+        arguments: { empreinte: KEY, reponse: 'pass', justification: 'Le titre est bon' },
+      })
+    )?.result as { isError?: boolean; content: { text: string }[] }
+    expect(refused.isError).toBe(true)
+    expect(refused.content[0]?.text).toMatch(/doute/)
+    expect(existsSync(join(dir, 'decisions', 'frame.title.json'))).toBe(false)
+    const accepted = (
+      await rpc('tools/call', {
+        name: 'trancher_question',
+        arguments: { empreinte: KEY, reponse: 'doute', justification: 'À voir avec un expert' },
+      })
+    )?.result as { isError?: boolean }
+    expect(accepted.isError).toBeUndefined()
+    expect(existsSync(join(dir, 'decisions', 'frame.title.json'))).toBe(true)
+    await close()
+  })
+
+  it('annonce le rôle dans les instructions', async () => {
+    const { rpc, close } = await session('aucune')
+    const init = (await rpc('initialize', { protocolVersion: '2025-06-18' }))?.result as {
+      instructions: string
+    }
+    expect(init.instructions).toMatch(/pas de votre ressort/)
+    await close()
+  })
+
+  it('filtre les non-conformités par type de correction', async () => {
+    const { rpc, close } = await session('tout')
+    const read = async (correction: string) => {
+      const reply = await rpc('tools/call', {
+        name: 'lire_a_corriger',
+        arguments: { correction },
+      })
+      const result = reply?.result as { content: { text: string }[] } | undefined
+      return result?.content[0]?.text ?? ''
+    }
+    expect(await read('mecanique')).toContain('### 1.1.1')
+    expect(await read('a-concevoir')).not.toContain('### 1.1.1')
+    await close()
+  })
+})
+
+describe('authentification des pages', () => {
+  const base = new URL('https://exemple.fr/')
+  let dir: string
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'rgaa-auth-'))
+  })
+
+  it('pose un cookie sur le site audité seulement', () => {
+    expect(parseCookie('session=abc123', base)).toEqual({
+      name: 'session',
+      value: 'abc123',
+      url: 'https://exemple.fr',
+    })
+  })
+
+  it('refuse un cookie mal formé sans en répéter la valeur', () => {
+    for (const bad of ['sansegal', '=vide', 'a=b c', 'a=b;c=d']) {
+      let message = ''
+      try {
+        parseCookie(bad, base)
+      } catch (error) {
+        message = (error as Error).message
+      }
+      expect(message, bad).toMatch(/Cookie invalide/)
+      expect(message).not.toContain('b c')
+    }
+  })
+
+  it('lit aussi les cookies de l’environnement', () => {
+    expect(cookieInputs(['a=1'], 'b=2; c=3;')).toEqual(['a=1', 'b=2', 'c=3'])
+    expect(cookieInputs(undefined, undefined)).toEqual([])
+  })
+
+  it('filtre l’état de session : cookies du domaine et localStorage de l’origine', () => {
+    const file = join(dir, 'auth.json')
+    writeFileSync(
+      file,
+      JSON.stringify({
+        cookies: [
+          { name: 'sid', value: 'ok', domain: 'exemple.fr', path: '/', expires: -1 },
+          { name: 'sub', value: 'ok', domain: '.exemple.fr', path: '/' },
+          { name: 'autre', value: 'SECRET-AILLEURS', domain: 'ailleurs.example', path: '/' },
+          { name: 'piege', value: 'SECRET-PIEGE', domain: 'mauvais-exemple.fr', path: '/' },
+        ],
+        origins: [
+          { origin: 'https://exemple.fr', localStorage: [{ name: 'jeton', value: 'ok' }] },
+          { origin: 'https://ailleurs.example', localStorage: [{ name: 'jeton', value: 'X' }] },
+        ],
+      }),
+    )
+    const auth = resolveAuth({ storageState: file, cookies: ['extra=1'] }, base)
+    expect(auth?.storageState?.cookies.map((cookie) => cookie.name)).toEqual(['sid', 'sub'])
+    expect(auth?.storageState?.origins.map((entry) => entry.origin)).toEqual(['https://exemple.fr'])
+    expect(auth?.cookies).toHaveLength(1)
+    expect(auth?.summary).not.toMatch(/SECRET|=ok|extra=1/)
+  })
+
+  it('refuse un état de session sans rien pour ce site, ou illisible', () => {
+    const empty = join(dir, 'vide.json')
+    writeFileSync(
+      empty,
+      JSON.stringify({ cookies: [{ name: 'a', value: 'b', domain: 'ailleurs.example' }] }),
+    )
+    expect(() => resolveAuth({ storageState: empty }, base)).toThrow(/ne contient rien/)
+    const broken = join(dir, 'casse.json')
+    writeFileSync(broken, '{pas du json')
+    expect(() => resolveAuth({ storageState: broken }, base)).toThrow(/illisible/)
+  })
+
+  it('sans réglage, aucune authentification', () => {
+    expect(resolveAuth(undefined, base)).toBeUndefined()
+    expect(resolveAuth({ cookies: [] }, base)).toBeUndefined()
   })
 })

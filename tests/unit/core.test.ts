@@ -13,6 +13,7 @@ import {
 } from '../../src/core/catalog.ts'
 import { parseCsv } from '../../src/core/csv.ts'
 import { DecisionStore, judgementKey } from '../../src/core/decisions.ts'
+import { redirectedAway } from '../../src/core/runner.ts'
 import { discoverPages, extractLocations, isSitemapIndex } from '../../src/core/sitemap.ts'
 
 describe('judgementKey', () => {
@@ -294,5 +295,21 @@ describe('environnement du navigateur', () => {
   it('ajoute les bibliothèques en tête du LD_LIBRARY_PATH', () => {
     const env = browserEnvironment({ LD_LIBRARY_PATH: '/a' }, '/libs')
     expect(env.LD_LIBRARY_PATH).toBe('/libs:/a')
+  })
+})
+
+describe('redirectedAway', () => {
+  it('ne signale ni la barre finale ni l’absence de redirection', () => {
+    expect(redirectedAway('https://a.fr/compte', 'https://a.fr/compte')).toBeUndefined()
+    expect(redirectedAway('https://a.fr/compte', 'https://a.fr/compte/')).toBeUndefined()
+    expect(redirectedAway('https://a.fr/', 'https://a.fr')).toBeUndefined()
+  })
+  it('signale une autre page ou un autre site (connexion, SSO)', () => {
+    expect(redirectedAway('https://a.fr/compte', 'https://a.fr/connexion?next=%2Fcompte')).toBe(
+      '/connexion',
+    )
+    expect(redirectedAway('https://a.fr/compte', 'https://sso.example/login')).toBe(
+      'https://sso.example/login',
+    )
   })
 })
