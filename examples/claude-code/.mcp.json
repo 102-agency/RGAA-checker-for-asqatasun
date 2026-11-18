@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "rgaa-juge": {
+      "command": "node",
+      "args": [
+        "/CHEMIN/VERS/rgaa-checker/dist/cli.js",
+        "mcp",
+        "--sites",
+        "http://localhost:3000",
+        "--decide",
+        "tout",
+        "--by",
+        "Claude Sonnet (juge)"
+      ]
+    },
+    "rgaa-correcteur": {
+      "command": "node",
+      "args": [
+        "/CHEMIN/VERS/rgaa-checker/dist/cli.js",
+        "mcp",
+        "--sites",
+        "http://localhost:3000",
+        "--decide",
+        "aucune",
+        "--by",
+        "Claude Haiku (correcteur)"
+      ]
+    }
+  }
+}

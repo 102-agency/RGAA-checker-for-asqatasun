@@ -42,6 +42,7 @@ rgaa audit http://localhost:3000 --theme 1,3        # certaines thématiques
 rgaa audit http://localhost:3000 --test 10.7.1      # un test
 rgaa audit http://localhost:3000 --asqatasun ./exports-asqatasun
 rgaa audit http://localhost:3000 --detail tout      # tout, page par page, test par test
+rgaa audit http://localhost:3000 --storage-state auth.json   # pages derrière une connexion
 
 rgaa report                  # réaffiche le dernier rapport, sans relancer le navigateur
 rgaa report --page /contact  # le détail test par test d'une page
@@ -97,10 +98,11 @@ L'outil fonctionne sans IA. Une IA peut toutefois l'utiliser de deux façons :
    enregistrer une réponse. `resultats-complets.md` donne le verdict de chaque test sur chaque
    page (positifs, négatifs, doutes).
 2. **Par le serveur MCP** : `rgaa mcp` expose `auditer_site`, `auditer_pages` (fusion au
-   rapport), `etat_audit`, `lire_a_corriger` (filtrable par page ou par test),
-   `resultats_complets`, `trancher_question`, `voir_capture` (l'image PNG) et `expliquer_rgaa`.
-   La boucle : auditer → lire → corriger le code → réauditer les pages corrigées. Pour Claude
-   Code, dans `.mcp.json` :
+   rapport, avec la **différence avant/après** : corrigé, persistant, régression),
+   `etat_audit`, `lire_a_corriger` (format `compact` par défaut, filtrable par page, par test ou
+   par type de correction), `resultats_complets`, `trancher_question`, `voir_capture` (l'image PNG)
+   et `expliquer_rgaa`. La boucle : auditer → lire → corriger le code → réauditer les pages
+   corrigées. Pour Claude Code, dans `.mcp.json` :
 
    ```json
    {
@@ -116,6 +118,40 @@ L'outil fonctionne sans IA. Une IA peut toutefois l'utiliser de deux façons :
    `--sites` limite les sites que l'IA peut faire auditer (recommandé) ; `--serve` ouvre en plus
    l'interface web pour suivre l'IA en direct ; les décisions de l'IA sont signées `--by`
    (défaut « IA (MCP) »). Aucun modèle n'est appelé par l'outil.
+
+   **Ce que l'IA peut trancher** (`--decide`, imposé par le serveur et non par une consigne) :
+   `tout` (défaut) accepte toute réponse admise ; `doute` n'accepte que « doute » ; `aucune` ne
+   propose même pas `trancher_question`.
+
+3. **Un modèle qui juge, un modèle économe qui corrige.** `examples/claude-code/` fournit deux
+   serveurs MCP (`rgaa-juge` en `--decide tout`, `rgaa-correcteur` en `--decide aucune`), deux
+   sous-agents Claude Code (**Sonnet** tranche les doutes et rédige des consignes précises :
+   fichier, texte avant, texte après ; **Haiku** les applique, réaudite et défait toute
+   régression) et la commande `/rgaa-boucle` qui les enchaîne. Les non-conformités portent une
+   **piste de correction** de type _mécanique_ (changement connu d'avance : `lang`, `alt`,
+   `label`…) ou _à concevoir_ (couleur, libellé, mise en page), pour savoir à qui la confier.
+
+   Les textes et extraits de code que renvoie l'outil viennent des pages auditées : le format
+   compact les neutralise et le signale au modèle comme des données, pas des instructions.
+
+### Pages derrière une connexion
+
+`--storage-state <fichier>` ouvre chaque page avec l'état de session de Playwright (cookies et
+`localStorage`), obtenu une fois par une connexion manuelle :
+
+```bash
+npx playwright codegen --save-storage=auth.json http://localhost:3000   # se connecter, fermer
+rgaa audit http://localhost:3000 --storage-state auth.json /compte /commandes
+```
+
+`--cookie nom=valeur` (répétable) pose des cookies ; préférer la variable `RGAA_COOKIES="a=1; b=2"`,
+car une ligne de commande est visible des autres utilisateurs de la machine. Les mêmes options
+existent pour `rgaa mcp`. Les secrets restent sur le site audité : l'état de session est filtré
+(cookies du domaine, `localStorage` de l'origine) et rien n'en est écrit dans les rapports ni les
+journaux. Ne pas versionner `auth.json`. Le sitemap est lu sans session : pour un espace connecté,
+donner les chemins en arguments. Si la session expire ou est refusée, la page redirige vers la
+connexion : elle est alors signalée « non auditée » (avec l'adresse d'arrivée) plutôt que de
+laisser auditer la page de connexion à sa place.
 
 ### Ce que montre le rapport
 
@@ -141,14 +177,14 @@ Trois niveaux de détail : `--detail synthese`, `problemes` (défaut), `tout`.
 
 ### Fichiers produits (dans `./rgaa-report`, `--out` pour changer)
 
-| Fichier                 | Contenu                                                                     |
-| ----------------------- | --------------------------------------------------------------------------- |
-| `a-corriger.md`         | non-conformités et doutes, lisible seul par un humain ou une IA              |
-| `a-corriger.json`       | le même, structuré (format `rgaa-checker/a-corriger@1`)                      |
-| `resultats-complets.md` | tous les tests, tous les verdicts, sur chaque page                           |
-| `rapport.html`          | rapport complet, à ouvrir dans un navigateur (clair/sombre, sans script)    |
-| `rapport.md`            | le même, en Markdown (à joindre à un ticket ou à versionner)                |
-| `rapport.json`          | données brutes, relues par `report`, `pending`, `decide`, `serve` et `mcp`  |
+| Fichier                 | Contenu                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `a-corriger.md`         | non-conformités et doutes, lisible seul par un humain ou une IA                 |
+| `a-corriger.json`       | le même, structuré (format `rgaa-checker/a-corriger@1`)                         |
+| `resultats-complets.md` | tous les tests, tous les verdicts, sur chaque page                              |
+| `rapport.html`          | rapport complet, à ouvrir dans un navigateur (clair/sombre, sans script)        |
+| `rapport.md`            | le même, en Markdown (à joindre à un ticket ou à versionner)                    |
+| `rapport.json`          | données brutes, relues par `report`, `pending`, `decide`, `serve` et `mcp`      |
 | `preuves/`              | captures encadrées des zones en échec (`echecs/`) et des questions (`<sujet>/`) |
 
 Les captures montrent l'élément entouré de rouge avec une marge de contexte ; elles sont
@@ -301,14 +337,16 @@ pnpm lint / pnpm format
 src/
   cli.ts, cli/          point d'entrée, commandes (audit, report, pending, decide, explain, serve, mcp)
   app/                  session d'audit partagée (CLI, interface, MCP), pilote des relances
-  core/                 navigateur, exécution d'un audit, captures, sitemap, catalogue, décisions
+  core/                 navigateur, session (auth), exécution d'un audit, captures, sitemap, catalogue, décisions
   security/             nettoyage des textes, URL, fichiers, validation des entrées
-  report/               modèle du rapport, rendus texte / Markdown / HTML, « à corriger », fusion
+  report/               modèle du rapport, rendus texte / Markdown / HTML, « à corriger » (+ compact,
+                        pistes de correction), fusion, différence avant/après
   server/               interface web locale : état en direct, serveur HTTP
   mcp/                  serveur MCP (JSON-RPC sur stdio) et ses outils
   themes/               les vérifications, une thématique par fichier
   lib/, inpage/         mesures et code exécuté dans les pages
 assets/                 référentiel RGAA 4.1.2, utilitaires injectés dans les pages, interface (ui/)
+examples/claude-code/   serveurs MCP, sous-agents et commande pour « Sonnet juge, Haiku corrige »
 fixtures/, tests/       pages-témoins et tests
 ```
 
