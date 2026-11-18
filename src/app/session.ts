@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import type { Browser } from 'playwright'
 import { type Scope, scopeFilter, TOOL_NAME, toolVersion } from '../cli/options.ts'
 import { loadAsqatasunReports } from '../core/asqatasun.ts'
+import { type AuthSettings, resolveAuth } from '../core/auth.ts'
 import { launchBrowser } from '../core/browser.ts'
 import { type Catalog, loadCatalog } from '../core/catalog.ts'
 import { DecisionStore } from '../core/decisions.ts'
@@ -44,6 +45,8 @@ export interface SessionConfig {
   merge: boolean
   /** Magasin de décisions à utiliser (sinon relu depuis `decisionsDir`). */
   decisionStore?: DecisionStore
+  /** Pages derrière une connexion : cookies ou état de session (jamais écrits dans le rapport). */
+  auth?: AuthSettings
 }
 
 export interface SessionHooks {
@@ -98,6 +101,8 @@ export async function runAuditSession(
       'Bac à sable de Chromium désactivé : les pages auditées ne sont plus isolées du système.',
     )
   }
+  const auth = resolveAuth(config.auth, config.base)
+  if (auth) hooks.log?.(auth.summary)
   const previous = config.merge ? previousReport(config.outDir, config.base) : undefined
   if (config.merge && !previous) {
     hooks.warn?.('Aucun rapport précédent de ce site : le rapport est écrit sans fusion.')
@@ -128,6 +133,7 @@ export async function runAuditSession(
         return fresh
       },
       urls,
+      auth,
       checks: allChecks,
       decisions,
       outDir: config.outDir,

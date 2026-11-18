@@ -1,6 +1,7 @@
 import type { Browser, BrowserContext, Page } from 'playwright'
 import { safeLine, truncate } from '../security/text.ts'
 import { DOUBT } from './answers.ts'
+import type { ResolvedAuth } from './auth.ts'
 import { newContext, openPage } from './browser.ts'
 import { captureZone, FAILURE_FOLDER, failureId, screenshotFile } from './capture.ts'
 import { type DecisionStore, judgementKey } from './decisions.ts'
@@ -83,6 +84,8 @@ export interface AuditOptions {
   onPage?: (report: PageReport, done: number, total: number) => void
   /** Reçoit la durée des vérifications lentes (diagnostic, `--trace`). */
   trace?: (line: string) => void
+  /** Session à ouvrir dans chaque contexte de navigation (pages derrière une connexion). */
+  auth?: ResolvedAuth
 }
 
 export interface AuditResult {
@@ -102,6 +105,7 @@ interface Shared {
   /** Captures d'échecs déjà prises (ou en cours), par empreinte : une seule par élément sur le site. */
   failureShots: Map<string, Promise<string | undefined>>
   emit: (event: AuditEvent) => void
+  auth?: ResolvedAuth
 }
 
 class OutcomeState implements Outcome {
@@ -311,6 +315,23 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
+/**
+ * Adresse où la navigation a fini, si elle n'est plus celle de la page
+ * demandée (autre site, ou autre chemin, hors barre finale).
+ */
+export function redirectedAway(requested: string, final: string): string | undefined {
+  const asked = new URL(requested)
+  let landed: URL
+  try {
+    landed = new URL(final)
+  } catch {
+    return undefined
+  }
+  const trim = (path: string) => path.replace(/\/+$/, '') || '/'
+  if (landed.origin !== asked.origin) return landed.origin + landed.pathname
+  return trim(landed.pathname) === trim(asked.pathname) ? undefined : landed.pathname
+}
+
 async function auditPage(
   browser: Browser,
   url: string,
@@ -328,7 +349,7 @@ async function auditPage(
   const budget = { left: MAX_FAILURE_CAPTURES }
 
   const open = async (options: PageOptions = {}): Promise<Page> => {
-    const context = await newContext(browser, options)
+    const context = await newContext(browser, options, shared.auth)
     contexts.push(context)
     const { page } = await openPage(context, url, { scripts: options.javaScriptEnabled !== false })
     return page
@@ -336,12 +357,18 @@ async function auditPage(
 
   shared.emit({ type: 'page-debut', url })
   try {
-    const context = await newContext(browser)
+    const context = await newContext(browser, {}, shared.auth)
     contexts.push(context)
     const { page, response } = await openPage(context, url)
     report.httpStatus = response?.status() ?? null
     if (!response || response.status() >= 400) {
       report.error = `La page répond ${report.httpStatus ?? 'sans réponse'} : elle n'est pas auditée.`
+      return { report, outcomes }
+    }
+    const redirect = shared.auth ? redirectedAway(url, page.url()) : undefined
+    if (redirect) {
+      // Session expirée ou refusée : on auditerait la page de connexion en croyant auditer la page demandée.
+      report.error = `La page redirige vers ${safeLine(redirect, 200)} alors qu'une session est fournie (expirée ou refusée ?) : elle n'est pas auditée.`
       return { report, outcomes }
     }
 
@@ -424,6 +451,7 @@ export async function audit(options: AuditOptions): Promise<AuditResult> {
     decisions: options.decisions,
     outDir: options.outDir,
     captures: options.captures ?? 'tout',
+    auth: options.auth,
     pending: new Map(),
     failureShots: new Map(),
     emit: (event) => {

@@ -2,6 +2,7 @@ import { existsSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { isAbsolute } from 'node:path'
 import { type Browser, type BrowserContext, chromium, type Page, type Response } from 'playwright'
+import type { ResolvedAuth } from './auth.ts'
 import { UserError } from './errors.ts'
 import { ASSETS } from './paths.ts'
 import type { PageOptions } from './types.ts'
@@ -99,8 +100,10 @@ export async function launchBrowser(options: LaunchOptions = {}): Promise<Browse
 export async function newContext(
   browser: Browser,
   options: PageOptions = {},
+  auth?: ResolvedAuth,
 ): Promise<BrowserContext> {
   const context = await browser.newContext({
+    storageState: auth?.storageState,
     viewport: options.viewport ?? DEFAULT_VIEWPORT,
     locale: 'fr-FR',
     colorScheme: options.colorScheme ?? 'light',
@@ -115,6 +118,7 @@ export async function newContext(
     ignoreHTTPSErrors: false,
   })
   context.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS)
+  if (auth?.cookies.length) await context.addCookies(auth.cookies)
   await context.addInitScript({ path: AXE_SOURCE })
   await context.addInitScript({ path: ASSETS.helpers })
   // L'indicateur de développement de Next.js (`<nextjs-portal>`) n'existe pas en

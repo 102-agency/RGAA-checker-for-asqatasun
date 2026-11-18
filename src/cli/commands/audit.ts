@@ -1,5 +1,6 @@
 import { AuditController } from '../../app/controller.ts'
 import { runAuditSession, type SessionConfig, type SessionResult } from '../../app/session.ts'
+import { cookieInputs } from '../../core/auth.ts'
 import { loadCatalog } from '../../core/catalog.ts'
 import { EXIT, UserError } from '../../core/errors.ts'
 import { CAPTURE_MODES } from '../../core/runner.ts'
@@ -45,6 +46,8 @@ export async function commandAudit(args: string[]): Promise<number> {
     serve: { type: 'boolean', default: false },
     port: { type: 'string' },
     by: { type: 'string' },
+    cookie: { type: 'string', multiple: true },
+    'storage-state': { type: 'string' },
     help: { type: 'boolean', short: 'h', default: false },
   })
   if (values.help) {
@@ -95,6 +98,10 @@ export async function commandAudit(args: string[]): Promise<number> {
     strict: values.strict,
     captures,
     merge: values.merge,
+    auth: {
+      storageState: values['storage-state'] ? absolute(values['storage-state']) : undefined,
+      cookies: cookieInputs(values.cookie, process.env.RGAA_COOKIES),
+    },
   }
   const hooks = {
     log: (line: string) => log(paint(err, 'bold', line)),
