@@ -47,6 +47,13 @@ Données
   --decisions <dossier>  décisions de jugement (défaut ./rgaa-decisions)
   --out <dossier>        dossier du rapport (défaut ./rgaa-report)
 
+Pages derrière une connexion
+  --storage-state <fichier>  état de session Playwright (cookies et localStorage), obtenu une fois par
+                         npx playwright codegen --save-storage=auth.json <url>
+  --cookie <nom=valeur>  cookie à poser sur le site (répétable ; aussi RGAA_COOKIES="a=1; b=2",
+                         à préférer : la ligne de commande est visible des autres utilisateurs)
+                         Les secrets restent sur le site audité et ne sont jamais écrits dans le rapport.
+
 Interface et captures
   --serve                ouvre l'interface web locale (127.0.0.1) : résultats en direct,
                          captures, boutons « problème / pas un problème / doute » ;
@@ -169,12 +176,21 @@ resultats_complets, trancher_question, voir_capture, expliquer_rgaa.
   --out <dossier>        dossier du rapport (défaut ./rgaa-report)
   --decisions <dossier>  dossier des décisions (défaut ./rgaa-decisions)
   --by <nom>             auteur des décisions prises par l'IA (défaut « IA (MCP) »)
+  --decide <mode>        ce que l'IA peut faire de trancher_question, imposé par le serveur :
+                           tout (défaut)  toute réponse admise : rôle « juge »
+                           doute          seulement « doute » (consigner une hésitation)
+                           aucune         l'outil n'est pas proposé : rôle « correcteur »
+  --storage-state <f>    état de session Playwright pour auditer des pages derrière une connexion
+  --cookie <nom=valeur>  cookie à poser sur le site (répétable ; aussi RGAA_COOKIES="a=1; b=2")
   --serve                ouvre aussi l'interface web locale pour suivre l'IA en direct
   --port <n>             port de l'interface (défaut 4747)
   --concurrency <n>      pages en parallèle (défaut 2)
   --captures <mode>      tout (défaut) | doutes | aucune
   --browser-libs <dir>   bibliothèques système pour Chromium (aussi : RGAA_BROWSER_LIBS)
   --no-sandbox           désactive le bac à sable de Chromium (déconseillé)
+
+Deux rôles, deux serveurs (voir examples/claude-code/) : un « juge » (--decide tout) qui tranche
+les doutes, un « correcteur » (--decide aucune) qui applique les corrections et réaudite.
 
 Exemple de déclaration (Claude Code, .mcp.json) :
   { "mcpServers": { "rgaa": { "command": "rgaa", "args": ["mcp", "--sites", "http://localhost:3000"] } } }

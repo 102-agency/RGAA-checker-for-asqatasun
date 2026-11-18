@@ -4,6 +4,7 @@ import type { SessionConfig, SessionHooks, SessionResult } from '../app/session.
 import { explainLines } from '../cli/commands/explain.ts'
 import { resolveScope, TOOL_NAME, toolVersion } from '../cli/options.ts'
 import { DOUBT } from '../core/answers.ts'
+import type { AuthSettings } from '../core/auth.ts'
 import { SCREENSHOT_PATH } from '../core/capture.ts'
 import { type Catalog, loadCatalog } from '../core/catalog.ts'
 import { DecisionStore } from '../core/decisions.ts'
@@ -11,9 +12,11 @@ import type { CaptureMode } from '../core/runner.ts'
 import {
   buildToFix,
   renderFullResults,
+  renderToFixCompact,
   renderToFixMarkdown,
   type ToFixDocument,
 } from '../report/ai.ts'
+import { diffReports, renderDiff } from '../report/diff.ts'
 import { type ReportDocument, siteOverview } from '../report/model.ts'
 import { REPORT_JSON, readReport } from '../report/parse.ts'
 import { containedPath } from '../security/fs.ts'
@@ -37,6 +40,16 @@ import {
  * appelé, le serveur MCP ne fait que l'exposer.
  */
 
+/**
+ * Ce que ce serveur laisse faire de `trancher_question` :
+ * - `tout`   : toute réponse admise par la question (rôle « juge ») ;
+ * - `doute`  : seulement « doute » (consigner une hésitation sans rien décider) ;
+ * - `aucune` : l'outil n'est même pas proposé (rôle « correcteur »).
+ * C'est le serveur qui l'impose : une consigne donnée au modèle ne suffirait pas.
+ */
+export const DECIDE_MODES = ['tout', 'doute', 'aucune'] as const
+export type DecideMode = (typeof DECIDE_MODES)[number]
+
 export interface McpOptions {
   outDir: string
   decisionsDir: string
@@ -48,6 +61,10 @@ export interface McpOptions {
   sites: string[] | null
   /** Auteur inscrit dans les décisions prises par l'IA. */
   by: string
+  /** Ce que l'IA peut faire de `trancher_question`. */
+  decide: DecideMode
+  /** Pages derrière une connexion (jamais écrites dans le rapport). */
+  auth?: AuthSettings
   /** Ouvre aussi l'interface web locale, pour suivre ce que fait l'IA. */
   serve: boolean
   port: number
@@ -145,11 +162,21 @@ export const TOOLS: ToolDefinition[] = [
     name: 'lire_a_corriger',
     title: 'Lire ce qu’il faut corriger',
     description:
-      'Renvoie les non-conformités (exigence RGAA, élément, extrait HTML, capture, pages) et les questions/doutes à trancher (réponses admises et leur sens) du dernier audit. Filtrable par page ou par test. Format markdown (défaut) ou json.',
+      'Renvoie les non-conformités (critère RGAA, piste de correction, élément, extrait HTML, capture, pages) et les questions/doutes à trancher (réponses admises et leur sens) du dernier audit. Filtrable par page, par test ou par type de correction. Format « compact » (défaut, le plus économe en tokens), « markdown » (énoncés officiels complets) ou « json ».',
     inputSchema: {
       type: 'object',
       properties: {
-        format: { type: 'string', enum: ['markdown', 'json'] },
+        format: {
+          type: 'string',
+          enum: ['compact', 'markdown', 'json'],
+          description: 'Défaut : compact.',
+        },
+        correction: {
+          type: 'string',
+          enum: ['mecanique', 'a-concevoir'],
+          description:
+            'Seulement les non-conformités dont la correction est mécanique (changement connu d’avance : lang, alt, label…) ou à concevoir (couleur, libellé, mise en page). Sans piste connue : à concevoir.',
+        },
         contenu: {
           type: 'string',
           enum: ['tout', 'non-conformites', 'questions'],
@@ -164,7 +191,7 @@ export const TOOLS: ToolDefinition[] = [
           type: 'integer',
           minimum: 1000,
           maximum: 200000,
-          description: 'Défaut 60000.',
+          description: 'Défaut 40000.',
         },
       },
       additionalProperties: false,
@@ -232,10 +259,17 @@ export const TOOLS: ToolDefinition[] = [
   },
 ]
 
-const INSTRUCTIONS = `Audit d'accessibilité RGAA 4.1.2 (niveau AA) en vrai navigateur.
+const BASE_INSTRUCTIONS = `Audit d'accessibilité RGAA 4.1.2 (niveau AA) en vrai navigateur.
 Boucle de travail : auditer_site (ou auditer_pages) → lire_a_corriger → corriger le code du site → auditer_pages sur les chemins corrigés → relire.
-Les non-conformités sont mesurées ; les questions sont des doutes que l'outil ne peut pas lever seul : les trancher avec trancher_question (réponse justifiée, « doute » si l'on ne sait pas), en s'aidant de voir_capture.
+Les non-conformités sont mesurées. Chacune porte, quand elle existe, une « piste de correction » de type mécanique (changement connu d'avance) ou à concevoir (choix à faire).
+Après auditer_pages, le bilan donne la différence avec le rapport précédent : ce qui est corrigé, ce qui reste, et les NOUVELLES non-conformités que la correction a introduites (à défaire ou à corriger avant d'aller plus loin).
 Les chemins de captures (preuves/…) sont relatifs au dossier du rapport.`
+
+const DECIDE_INSTRUCTIONS: Record<DecideMode, string> = {
+  tout: `Les questions sont des doutes que l'outil ne peut pas lever seul : les trancher avec trancher_question (réponse justifiée par ce que montrent les preuves et la capture, « doute » si l'on ne sait pas), en s'aidant de voir_capture. Ne jamais répondre « ok » ou « neutre » pour faire disparaître une question : une réponse à tort produit un faux « conforme ».`,
+  doute: `Les questions sont des doutes que ce serveur ne vous laisse pas trancher : trancher_question n'accepte que « doute » (avec justification), pour consigner une hésitation. La décision revient à une personne ou au rôle « juge ».`,
+  aucune: `Les questions de jugement ne sont pas de votre ressort sur ce serveur : ne les traiter pas, ne pas corriger à leur place. Corrigez les non-conformités qui vous sont confiées ; les questions restent à trancher par le rôle « juge ».`,
+}
 
 /** Le texte dépasse-t-il la limite ? On coupe proprement et on le dit. */
 function clip(text: string, max: number): string {
@@ -249,7 +283,7 @@ function matchesTest(test: string, filter: string): boolean {
 
 function filterToFix(
   doc: ToFixDocument,
-  options: { page?: string; test?: string; content: string },
+  options: { page?: string; test?: string; content: string; correction?: string },
 ): ToFixDocument {
   const { page, test } = options
   const nonConformities =
@@ -257,6 +291,11 @@ function filterToFix(
       ? []
       : doc.nonConformities
           .filter((item) => !test || matchesTest(item.test, test))
+          .filter(
+            (item) =>
+              !options.correction ||
+              (item.remediation?.kind ?? 'a-concevoir') === options.correction,
+          )
           .filter((item) => !page || item.pages.includes(page))
           .map((item) =>
             page
@@ -272,7 +311,12 @@ function filterToFix(
   return { ...doc, nonConformities, questions }
 }
 
-function summaryText(report: ReportDocument, result?: SessionResult, url?: string): string {
+function summaryText(
+  report: ReportDocument,
+  result?: SessionResult,
+  url?: string,
+  before?: ReportDocument,
+): string {
   const overview = siteOverview(report)
   const doc = buildToFix(report, loadCatalog())
   const lines = [
@@ -295,12 +339,28 @@ function summaryText(report: ReportDocument, result?: SessionResult, url?: strin
       `- ${result.written.fullResults}`,
     )
   }
+  if (before) lines.push('', renderDiff(diffReports(before, report)))
   if (url) lines.push('', `Interface web en direct : ${url}`)
   lines.push(
     '',
     'Suite : lire_a_corriger pour le détail, corriger, puis auditer_pages sur les chemins corrigés.',
   )
   return lines.join('\n')
+}
+
+/** Les outils proposés selon ce que le serveur laisse trancher. */
+export function toolsFor(decide: DecideMode): ToolDefinition[] {
+  if (decide === 'aucune') return TOOLS.filter((tool) => tool.name !== 'trancher_question')
+  if (decide === 'tout') return TOOLS
+  return TOOLS.map((tool) =>
+    tool.name === 'trancher_question'
+      ? {
+          ...tool,
+          description:
+            'Consigne un doute sur une question de jugement (empreinte donnée par lire_a_corriger) : seule la réponse « doute » est admise, avec une justification. La question reste ouverte.',
+        }
+      : tool,
+  )
 }
 
 export class RgaaTools {
@@ -314,8 +374,8 @@ export class RgaaTools {
   handlers(): McpHandlers {
     return {
       serverInfo: { name: TOOL_NAME, version: toolVersion() },
-      instructions: INSTRUCTIONS,
-      tools: TOOLS,
+      instructions: `${BASE_INSTRUCTIONS}\n${DECIDE_INSTRUCTIONS[this.options.decide]}`,
+      tools: toolsFor(this.options.decide),
       call: (name, args, context) => this.call(name, args, context),
     }
   }
@@ -362,6 +422,7 @@ export class RgaaTools {
       strict: false,
       captures: this.options.captures,
       merge,
+      auth: this.options.auth,
     }
     return config
   }
@@ -389,6 +450,7 @@ export class RgaaTools {
       })
       this.options.log(`Interface web : ${this.server.url}`)
     }
+    const before = this.previousReport(config.base)
     const run = this.controller.run({
       paths,
       onPage: (page, done, total) => context.progress(done, total, `Page ${page.path} auditée`),
@@ -401,18 +463,37 @@ export class RgaaTools {
       )
     }
     const result = await run
-    return text(summaryText(result.report, result, this.server?.url))
+    return text(summaryText(result.report, result, this.server?.url, before))
   }
 
+  /** Rapport d'avant l'audit, pour en montrer la différence (absent s'il n'y en a pas, ou d'un autre site). */
+  private previousReport(base: URL): ReportDocument | undefined {
+    try {
+      const report = this.report()
+      return new URL(report.meta.baseUrl).origin === base.origin ? report : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
+   * Dernier rapport écrit. Le disque fait foi, pas la mémoire : deux serveurs
+   * (juge et correcteur) partagent le même dossier, et l'un réaudite pendant
+   * que l'autre lit. L'état en mémoire ne sert que si rien n'est écrit.
+   */
   private report(): ReportDocument {
-    return (
-      this.controller?.state.lastReport ??
-      readReport(containedPath(this.options.outDir, REPORT_JSON))
-    )
+    try {
+      return readReport(containedPath(this.options.outDir, REPORT_JSON))
+    } catch (error) {
+      const live = this.controller?.state.lastReport
+      if (live) return live
+      throw error
+    }
   }
 
+  /** Décisions relues sur le disque à chaque appel : l'autre serveur a pu en écrire. */
   private decisions(report: ReportDocument): DecisionStore {
-    return this.controller?.state.decisionStore ?? new DecisionStore(report.meta.decisionsDir)
+    return new DecisionStore(report.meta.decisionsDir)
   }
 
   async call(
@@ -469,8 +550,12 @@ export class RgaaTools {
       case 'lire_a_corriger': {
         const format =
           args.format === undefined
-            ? 'markdown'
-            : read.oneOf(args.format, ['markdown', 'json'] as const, 'format')
+            ? 'compact'
+            : read.oneOf(args.format, ['compact', 'markdown', 'json'] as const, 'format')
+        const correction =
+          args.correction === undefined
+            ? undefined
+            : read.oneOf(args.correction, ['mecanique', 'a-concevoir'] as const, 'correction')
         const content =
           args.contenu === undefined
             ? 'tout'
@@ -479,7 +564,7 @@ export class RgaaTools {
         const test = read.optionalString(args.test, 'test', 20)
         const max =
           args.max_caracteres === undefined
-            ? 60_000
+            ? 40_000
             : Math.min(TEXT_LIMIT, read.number(args.max_caracteres, 'max_caracteres'))
         const report = this.report()
         const store = this.decisions(report)
@@ -488,9 +573,14 @@ export class RgaaTools {
             outDir: this.options.outDir,
             decisions: (topic, key) => store.peek(topic, key),
           }),
-          { page, test, content },
+          { page, test, content, correction },
         )
-        const body = format === 'json' ? JSON.stringify(doc, null, 1) : renderToFixMarkdown(doc)
+        const body =
+          format === 'json'
+            ? JSON.stringify(doc, null, 1)
+            : format === 'compact'
+              ? renderToFixCompact(doc)
+              : renderToFixMarkdown(doc)
         return text(clip(`Dossier du rapport : ${this.options.outDir}\n\n${body}`, max))
       }
       case 'resultats_complets': {
@@ -508,6 +598,11 @@ export class RgaaTools {
         return text(clip(renderFullResults(filtered, this.catalog), TEXT_LIMIT))
       }
       case 'trancher_question': {
+        if (this.options.decide === 'aucune') {
+          throw new ToolError(
+            'Ce serveur ne permet pas de trancher les questions (--decide aucune).',
+          )
+        }
         const key = read.matching(
           args.empreinte,
           /^[0-9a-f]{12}$/,
@@ -515,6 +610,11 @@ export class RgaaTools {
           '12 caractères hexadécimaux',
         )
         const answer = read.string(args.reponse, 'reponse', 100)
+        if (this.options.decide === 'doute' && answer !== DOUBT) {
+          throw new ToolError(
+            'Ce serveur n’admet que la réponse « doute » (--decide doute) : consigner l’hésitation avec une justification ; la décision revient au rôle « juge » ou à une personne.',
+          )
+        }
         const reason = safeLine(read.string(args.justification, 'justification', 2_000), 2_000)
         if (!reason) throw new ToolError('Une justification est obligatoire.')
         if (this.controller) {
