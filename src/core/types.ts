@@ -46,9 +46,20 @@ export interface ElementRef {
 }
 
 export interface Failure {
+  /** Empreinte de l'échec (test + élément + message), identique d'une page à l'autre. */
+  id?: string
   message: string
   selector?: string
   snippet?: string
+  /** Capture de la zone concernée, chemin relatif au dossier du rapport. */
+  screenshot?: string
+}
+
+/** Doute enregistré sur une question : elle reste ouverte, avec la remarque de qui l'a examinée. */
+export interface Doubt {
+  reason: string
+  by: string
+  date: string
 }
 
 /** Question de jugement posée par une vérification, résolue par `decisions/`. */
@@ -68,6 +79,8 @@ export interface Judgement {
   screenshot?: string
   /** Page où la question a été rencontrée en premier. */
   url?: string
+  /** La question a été examinée et laissée en doute (décision `doute`). */
+  doubt?: Doubt
 }
 
 export interface JudgeRequest {

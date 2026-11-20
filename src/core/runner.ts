@@ -1,9 +1,9 @@
-import { mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
 import type { Browser, BrowserContext, Page } from 'playwright'
-import { assertSafeSegment, containedPath } from '../security/fs.ts'
 import { safeLine, truncate } from '../security/text.ts'
+import { DOUBT } from './answers.ts'
+import type { ResolvedAuth } from './auth.ts'
 import { newContext, openPage } from './browser.ts'
+import { captureZone, FAILURE_FOLDER, failureId, screenshotFile } from './capture.ts'
 import { type DecisionStore, judgementKey } from './decisions.ts'
 import { errorMessage } from './errors.ts'
 import type {
@@ -32,14 +32,37 @@ const MAX_MESSAGE = 2_000
 const MAX_SELECTOR = 1_000
 const MAX_SNIPPET = 1_000
 const MAX_NOTES = 50
+/** Captures d'échecs au plus par page (les questions en attente sont toutes capturées). */
+const MAX_FAILURE_CAPTURES = 40
 
-function failureOf(message: string, ref?: ElementRef): Failure {
+function failureOf(test: string, message: string, ref?: ElementRef): Failure {
+  const text = truncate(message, MAX_MESSAGE)
+  const selector = ref?.selector === undefined ? undefined : truncate(ref.selector, MAX_SELECTOR)
   return {
-    message: truncate(message, MAX_MESSAGE),
-    selector: ref?.selector === undefined ? undefined : truncate(ref.selector, MAX_SELECTOR),
+    id: failureId(test, text, selector),
+    message: text,
+    selector,
     snippet: ref?.snippet === undefined ? undefined : truncate(ref.snippet, MAX_SNIPPET),
   }
 }
+
+/**
+ * Captures d'écran : `tout` (échecs et questions), `doutes` (questions
+ * seulement), `aucune`.
+ */
+export type CaptureMode = 'tout' | 'doutes' | 'aucune'
+export const CAPTURE_MODES: readonly CaptureMode[] = ['tout', 'doutes', 'aucune']
+
+/** Événements d'un audit en cours, pour un suivi en temps réel (interface web, MCP). */
+export type AuditEvent =
+  | { type: 'audit-debut'; urls: string[] }
+  | { type: 'page-debut'; url: string }
+  /** Un échec vient d'être constaté (capture comprise quand elle a pu être prise). */
+  | { type: 'constat'; url: string; test: string; failure: Failure }
+  /** Une question de jugement vient d'être posée (ou reposée sur une autre page). */
+  | { type: 'question'; url: string; test: string; judgement: Judgement }
+  | { type: 'page-fin'; report: PageReport; done: number; total: number }
+  | { type: 'inter-pages' }
 
 export interface AuditOptions {
   browser: Browser
@@ -51,12 +74,18 @@ export interface AuditOptions {
   decisions: DecisionStore
   /** Dossier du rapport : les captures des questions en attente y sont écrites. */
   outDir?: string
+  /** Captures d'écran des zones concernées (défaut `tout`, si `outDir` est donné). */
+  captures?: CaptureMode
+  /** Suivi en temps réel : chaque échec, question, début et fin de page. */
+  onEvent?: (event: AuditEvent) => void
   concurrency?: number
   /** Restreint l'audit à certains tests (les vérifications qui n'en couvrent aucun sont sautées). */
   filter?: (test: string) => boolean
   onPage?: (report: PageReport, done: number, total: number) => void
   /** Reçoit la durée des vérifications lentes (diagnostic, `--trace`). */
   trace?: (line: string) => void
+  /** Session à ouvrir dans chaque contexte de navigation (pages derrière une connexion). */
+  auth?: ResolvedAuth
 }
 
 export interface AuditResult {
@@ -68,7 +97,15 @@ export interface AuditResult {
 interface Shared {
   decisions: DecisionStore
   outDir?: string
-  pending: Map<string, Judgement & { tests: Set<string>; pages: Set<string> }>
+  captures: CaptureMode
+  pending: Map<
+    string,
+    Judgement & { tests: Set<string>; pages: Set<string>; captureTried?: boolean }
+  >
+  /** Captures d'échecs déjà prises (ou en cours), par empreinte : une seule par élément sur le site. */
+  failureShots: Map<string, Promise<string | undefined>>
+  emit: (event: AuditEvent) => void
+  auth?: ResolvedAuth
 }
 
 class OutcomeState implements Outcome {
@@ -78,6 +115,9 @@ class OutcomeState implements Outcome {
   private checked = 0
   private failureCount = 0
   error: string | undefined
+  /** Échecs et questions déjà signalés par `onEvent`. */
+  reportedFailures = 0
+  reportedPending = 0
 
   constructor(
     private readonly test: string,
@@ -92,7 +132,7 @@ class OutcomeState implements Outcome {
   fail(message: string, ref?: ElementRef): void {
     this.checked += 1
     this.failureCount += 1
-    if (this.failures.length < MAX_FAILURES) this.failures.push(failureOf(message, ref))
+    if (this.failures.length < MAX_FAILURES) this.failures.push(failureOf(this.test, message, ref))
   }
 
   note(text: string): void {
@@ -106,6 +146,10 @@ class OutcomeState implements Outcome {
     const key = judgementKey(request.topic, request.evidence)
     const decision = this.shared.decisions.get(request.topic, key)
     if (decision && answers.includes(decision.answer)) return decision.answer
+    const doubt =
+      decision?.answer === DOUBT
+        ? { reason: decision.reason, by: decision.by, date: decision.date }
+        : undefined
 
     const judgement: Judgement = {
       topic: request.topic,
@@ -116,6 +160,7 @@ class OutcomeState implements Outcome {
       selector: request.ref?.selector,
       snippet: request.ref?.snippet,
       url: this.url,
+      doubt,
     }
     const known = this.shared.pending.get(key)
     if (known) {
@@ -126,22 +171,17 @@ class OutcomeState implements Outcome {
       // Inscrit avant la capture : deux pages auditées en parallèle ne capturent pas deux fois.
       const entry = { ...judgement, tests: new Set([this.test]), pages: new Set([this.url]) }
       this.shared.pending.set(key, entry)
-      if (request.screenshot && this.shared.outDir) {
+      if (request.screenshot && this.shared.outDir && this.shared.captures !== 'aucune') {
         // Le sujet devient un nom de dossier : il ne doit jamais pouvoir sortir de `preuves/`.
-        const topic = assertSafeSegment(request.topic, 'Sujet de question')
-        const relative = `preuves/${topic}/${key}.png`
-        const file = containedPath(this.shared.outDir, 'preuves', topic, `${key}.png`)
-        try {
-          mkdirSync(dirname(file), { recursive: true })
-          await request.screenshot.first().screenshot({ path: file, timeout: 5_000 })
+        const { relative, file } = screenshotFile(this.shared.outDir, request.topic, key)
+        // Élément non capturable (hors écran, masqué) : la question reste posée sans image.
+        if (await captureZone(request.screenshot.page(), request.screenshot, file)) {
           entry.screenshot = relative
           judgement.screenshot = relative
-        } catch {
-          // Élément non capturable (hors écran, masqué) : la question reste posée sans image.
         }
       }
     }
-    if (decision) {
+    if (decision && !doubt) {
       this.note(
         `Décision ${key} ignorée : réponse « ${decision.answer} » hors des réponses admises (${answers.join(', ')}).`,
       )
@@ -159,6 +199,7 @@ class OutcomeState implements Outcome {
       if (this.failures.length < MAX_FAILURES) {
         this.failures.push(
           failureOf(
+            this.test,
             `${request.question} → non (décision ${key}${reason ? ` : ${reason}` : ''})`,
             request.ref,
           ),
@@ -192,12 +233,103 @@ class OutcomeState implements Outcome {
   }
 }
 
+/**
+ * Après une vérification : capture les zones des nouveaux échecs (et des
+ * questions restées sans image), puis signale échecs et questions à `onEvent`.
+ * `page` est la page partagée de l'URL auditée (absente pour les vérifications
+ * inter-pages, dont les pages sont déjà fermées).
+ */
+async function flush(
+  page: Page | undefined,
+  url: string,
+  tests: readonly string[],
+  outcomes: ReadonlyMap<string, OutcomeState>,
+  shared: Shared,
+  budget: { left: number },
+): Promise<void> {
+  let moved = false
+  for (const test of tests) {
+    const outcome = outcomes.get(test)
+    if (!outcome) continue
+    const failures = outcome.failures.slice(outcome.reportedFailures)
+    const pending = outcome.pending.slice(outcome.reportedPending)
+    outcome.reportedFailures = outcome.failures.length
+    outcome.reportedPending = outcome.pending.length
+    for (const failure of failures) {
+      if (page && failure.id && failure.selector && shared.outDir && shared.captures === 'tout') {
+        let shot = shared.failureShots.get(failure.id)
+        if (!shot && budget.left > 0) {
+          budget.left -= 1
+          moved = true
+          const { relative, file } = screenshotFile(shared.outDir, FAILURE_FOLDER, failure.id)
+          shot = safeLocator(page, failure.selector).then(async (locator) =>
+            locator && (await captureZone(page, locator, file)) ? relative : undefined,
+          )
+          shared.failureShots.set(failure.id, shot)
+        }
+        failure.screenshot = shot ? await shot : undefined
+      }
+      shared.emit({ type: 'constat', url, test, failure })
+    }
+    for (const judgement of pending) {
+      const entry = shared.pending.get(judgement.key)
+      if (
+        page &&
+        entry &&
+        !entry.screenshot &&
+        !entry.captureTried &&
+        judgement.selector &&
+        shared.outDir &&
+        shared.captures !== 'aucune'
+      ) {
+        // Question posée sans capture : on tente la zone de l'élément sur la page principale.
+        entry.captureTried = true
+        moved = true
+        const { relative, file } = screenshotFile(shared.outDir, judgement.topic, judgement.key)
+        const locator = await safeLocator(page, judgement.selector)
+        if (locator && (await captureZone(page, locator, file))) entry.screenshot = relative
+      }
+      if (entry?.screenshot) judgement.screenshot = entry.screenshot
+      shared.emit({ type: 'question', url, test, judgement })
+    }
+  }
+  // Les captures font défiler la page partagée : on la remet en haut pour les vérifications suivantes.
+  if (page && moved) await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {})
+}
+
+/** Localisateur d'un sélecteur produit par la page, ou `undefined` s'il est invalide ou sans cible. */
+async function safeLocator(page: Page, selector: string) {
+  try {
+    const locator = page.locator(`css=${selector}`)
+    return (await locator.count()) > 0 ? locator : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => reject(new Error(`délai dépassé (${ms / 1000} s) : ${label}`)), ms)
   })
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
+/**
+ * Adresse où la navigation a fini, si elle n'est plus celle de la page
+ * demandée (autre site, ou autre chemin, hors barre finale).
+ */
+export function redirectedAway(requested: string, final: string): string | undefined {
+  const asked = new URL(requested)
+  let landed: URL
+  try {
+    landed = new URL(final)
+  } catch {
+    return undefined
+  }
+  const trim = (path: string) => path.replace(/\/+$/, '') || '/'
+  if (landed.origin !== asked.origin) return landed.origin + landed.pathname
+  return trim(landed.pathname) === trim(asked.pathname) ? undefined : landed.pathname
 }
 
 async function auditPage(
@@ -214,21 +346,29 @@ async function auditPage(
   const contexts: BrowserContext[] = []
   const sharedPages = new Map<string, Promise<Page>>()
   const memos = new Map<string, Promise<unknown>>()
+  const budget = { left: MAX_FAILURE_CAPTURES }
 
   const open = async (options: PageOptions = {}): Promise<Page> => {
-    const context = await newContext(browser, options)
+    const context = await newContext(browser, options, shared.auth)
     contexts.push(context)
     const { page } = await openPage(context, url, { scripts: options.javaScriptEnabled !== false })
     return page
   }
 
+  shared.emit({ type: 'page-debut', url })
   try {
-    const context = await newContext(browser)
+    const context = await newContext(browser, {}, shared.auth)
     contexts.push(context)
     const { page, response } = await openPage(context, url)
     report.httpStatus = response?.status() ?? null
     if (!response || response.status() >= 400) {
       report.error = `La page répond ${report.httpStatus ?? 'sans réponse'} : elle n'est pas auditée.`
+      return { report, outcomes }
+    }
+    const redirect = shared.auth ? redirectedAway(url, page.url()) : undefined
+    if (redirect) {
+      // Session expirée ou refusée : on auditerait la page de connexion en croyant auditer la page demandée.
+      report.error = `La page redirige vers ${safeLine(redirect, 200)} alors qu'une session est fournie (expirée ou refusée ?) : elle n'est pas auditée.`
       return { report, outcomes }
     }
 
@@ -286,6 +426,7 @@ async function auditPage(
       } catch (error) {
         for (const test of check.tests) forTest(test).error = errorMessage(error)
       }
+      await flush(page, url, check.tests, outcomes, shared, budget).catch(() => {})
       const seconds = (Date.now() - started) / 1000
       if (trace && seconds >= 1) {
         trace(`${seconds.toFixed(1)} s  ${path}  [${check.tests.slice(0, 4).join(' ')}]`)
@@ -305,11 +446,23 @@ export async function audit(options: AuditOptions): Promise<AuditResult> {
   const pageChecks = selected.filter((check): check is PageCheck => check.kind === 'page')
   const siteChecks = selected.filter((check): check is SiteCheck => check.kind === 'site')
 
+  const emit = options.onEvent
   const shared: Shared = {
     decisions: options.decisions,
     outDir: options.outDir,
+    captures: options.captures ?? 'tout',
+    auth: options.auth,
     pending: new Map(),
+    failureShots: new Map(),
+    emit: (event) => {
+      try {
+        emit?.(event)
+      } catch {
+        // Un abonné en panne (interface fermée…) n'interrompt pas l'audit.
+      }
+    },
   }
+  shared.emit({ type: 'audit-debut', urls: [...options.urls] })
   const records = new Map<string, SiteRecord[]>()
   const audited = new Array<{ report: PageReport; outcomes: Map<string, OutcomeState> }>(
     options.urls.length,
@@ -359,6 +512,7 @@ export async function audit(options: AuditOptions): Promise<AuditResult> {
       fillResults(result)
       done += 1
       options.onPage?.(result.report, done, options.urls.length)
+      shared.emit({ type: 'page-fin', report: result.report, done, total: options.urls.length })
     }
   }
   const workers = Math.max(1, Math.min(options.concurrency ?? 4, options.urls.length))
@@ -371,6 +525,7 @@ export async function audit(options: AuditOptions): Promise<AuditResult> {
     pages: live.map((entry) => ({ url: entry.report.url, path: entry.report.path })),
     records: (topic) => (records.get(topic) ?? []).filter((record) => byUrl.has(record.url)),
   }
+  if (siteChecks.length > 0) shared.emit({ type: 'inter-pages' })
   for (const check of siteChecks) {
     const forTest = (url: string, test: string): OutcomeState => {
       const entry = byUrl.get(url)
@@ -395,6 +550,9 @@ export async function audit(options: AuditOptions): Promise<AuditResult> {
         for (const test of check.tests) forTest(entry.report.url, test).error = errorMessage(error)
       }
     }
+    for (const entry of live) {
+      await flush(undefined, entry.report.url, check.tests, entry.outcomes, shared, { left: 0 })
+    }
   }
 
   // Les vérifications inter-pages ont pu modifier des résultats : on les relit tous.
@@ -402,7 +560,7 @@ export async function audit(options: AuditOptions): Promise<AuditResult> {
 
   return {
     pages: audited.map((entry) => entry.report),
-    pending: Array.from(shared.pending.values()).map((entry) => ({
+    pending: Array.from(shared.pending.values()).map(({ captureTried: _, ...entry }) => ({
       ...entry,
       tests: Array.from(entry.tests).sort(),
       pages: Array.from(entry.pages),

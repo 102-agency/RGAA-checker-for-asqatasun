@@ -13,4 +13,6 @@ export const ASSETS = {
   /** Utilitaires injectés dans les pages auditées (`window.__rgaa`). */
   helpers: fileURLToPath(new URL('assets/helpers.js', PACKAGE_ROOT)),
   packageJson: fileURLToPath(new URL('package.json', PACKAGE_ROOT)),
+  /** Interface web locale (`--serve`, `rgaa serve`) : page, script et feuille de style. */
+  ui: fileURLToPath(new URL('assets/ui/', PACKAGE_ROOT)),
 } as const

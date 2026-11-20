@@ -147,7 +147,6 @@ export function summarizePage(
   asqatasun: AsqatasunReport | undefined,
   filter: (test: string) => boolean = () => true,
 ): PageEntry {
-  const counts = emptyCounts()
   const tests: TestEntry[] = []
   for (const item of catalog.tests) {
     if (!filter(item.test)) continue
@@ -155,7 +154,6 @@ export function summarizePage(
     const tool: Status = result?.status ?? 'NT'
     const external = page.error ? undefined : asqatasun?.results[item.test]
     const final = mergeStatus(tool, external)
-    counts[final] += 1
     tests.push({
       test: item.test,
       final,
@@ -174,24 +172,38 @@ export function summarizePage(
     })
   }
 
-  const settled = !page.error && OPEN_STATUSES.every((status) => counts[status] === 0)
-  const criteria = countCriteria(tests)
-  const entry: PageEntry = {
+  return recountPage({
     url: page.url,
     path: page.path,
     httpStatus: page.httpStatus,
     error: page.error,
     state: 'a-valider',
     asqatasun: asqatasun ? { file: asqatasun.file, score: asqatasun.score } : undefined,
+    counts: emptyCounts(),
+    criteria: { C: 0, NC: 0, NA: 0, open: 0 },
+    score: null,
+    criteriaScore: null,
+    settled: false,
+    tests,
+  })
+}
+
+/** Recalcule décomptes, taux et état d'une page à partir de ses tests (après une fusion, par exemple). */
+export function recountPage(entry: PageEntry): PageEntry {
+  const counts = emptyCounts()
+  for (const test of entry.tests) counts[test.final] += 1
+  const criteria = countCriteria(entry.tests)
+  const settled = !entry.error && OPEN_STATUSES.every((status) => counts[status] === 0)
+  const page: PageEntry = {
+    ...entry,
     counts,
     criteria,
-    score: page.error ? null : percent(counts.C, counts.NC),
-    criteriaScore: page.error ? null : percent(criteria.C, criteria.NC),
+    score: entry.error ? null : percent(counts.C, counts.NC),
+    criteriaScore: entry.error ? null : percent(criteria.C, criteria.NC),
     settled,
-    tests,
   }
-  entry.state = pageState(entry)
-  return entry
+  page.state = pageState(page)
+  return page
 }
 
 export function buildReport(input: {

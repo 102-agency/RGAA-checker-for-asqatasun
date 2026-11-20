@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="rgaa-jeton" content="__JETON__">
+<meta name="rgaa-racine" content="__RACINE__">
+<title>RGAA — audit en direct</title>
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/app.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<a class="evitement" href="#contenu">Aller au contenu</a>
+
+<aside class="lateral">
+  <div class="marque">
+    <span class="marque-signe" aria-hidden="true"></span>
+    <span class="marque-nom">RGAA <span class="marque-version">4.1.2</span></span>
+  </div>
+  <a class="retour" id="retour" href="/" hidden>
+    <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 3.5 5 8l4.5 4.5"/></svg>
+    Tous les audits
+  </a>
+
+  <nav class="navigation" aria-label="Vues de l’audit">
+    <p class="navigation-titre" id="nav-audit">Audit</p>
+    <ul aria-labelledby="nav-audit">
+      <li><button type="button" data-vue="bord" aria-current="page">
+        <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13.2V8.6M8 13.2V2.8M13 13.2V6"/></svg>
+        <span class="nav-libelle">Tableau de bord</span></button></li>
+      <li><button type="button" data-vue="questions">
+        <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M6.2 6.3a1.9 1.9 0 1 1 2.6 1.75c-.5.25-.8.6-.8 1.15M8 11.5v.01"/></svg>
+        <span class="nav-libelle">À trancher</span><span class="compte" data-compte="questions">0</span></button></li>
+      <li><button type="button" data-vue="doutes">
+        <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M5.3 8h.01M8 8h.01M10.7 8h.01"/></svg>
+        <span class="nav-libelle">Doutes</span><span class="compte" data-compte="doutes">0</span></button></li>
+      <li><button type="button" data-vue="constats">
+        <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.3 14.2 13H1.8L8 2.3Z"/><path d="M8 6.6v3M8 11.3v.01"/></svg>
+        <span class="nav-libelle">Non-conformités</span><span class="compte" data-compte="constats">0</span></button></li>
+      <li><button type="button" data-vue="tranchees">
+        <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="m5.6 8.2 1.6 1.6 3.3-3.5"/></svg>
+        <span class="nav-libelle">Tranchées</span><span class="compte" data-compte="tranchees">0</span></button></li>
+    </ul>
+
+    <div class="navigation-groupe" id="groupe-ia" hidden>
+      <p class="navigation-titre" id="nav-ia">Corrections de l’IA</p>
+      <ul aria-labelledby="nav-ia">
+        <li><button type="button" data-vue="modifications">
+          <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.2 2.5 8 6 12.8M10 3.2 13.5 8 10 12.8"/></svg>
+          <span class="nav-libelle">Avant / après</span><span class="compte" data-compte="modifications">0</span></button></li>
+      </ul>
+    </div>
+
+    <p class="navigation-titre" id="nav-site">Site</p>
+    <ul aria-labelledby="nav-site">
+      <li><button type="button" data-vue="pages">
+        <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M2.5 6.5h11"/></svg>
+        <span class="nav-libelle">Pages</span><span class="compte" data-compte="pages">0</span></button></li>
+      <li><button type="button" data-vue="fichiers">
+        <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h5l3 3v8H4z"/><path d="M9 2.5v3h3"/></svg>
+        <span class="nav-libelle">Fichiers</span></button></li>
+    </ul>
+  </nav>
+
+  <div class="lateral-pied">
+    <p class="mcp" id="mcp" hidden><span class="mcp-point" aria-hidden="true"></span>IA connectée (MCP)</p>
+    <div class="theme" role="group" aria-label="Thème d’affichage">
+      <button type="button" data-theme-choix="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-theme-choix="light" aria-pressed="false">Clair</button>
+      <button type="button" data-theme-choix="dark" aria-pressed="false">Sombre</button>
+    </div>
+  </div>
+</aside>
+
+<div class="colonne">
+  <header class="barre" id="barre">
+    <div class="barre-site">
+      <p class="barre-fil">Audit en direct</p>
+      <p class="barre-nom" id="site"></p>
+    </div>
+    <p class="etat" id="etat" role="status">Connexion…</p>
+    <button type="button" class="bouton secondaire" data-relancer="tout" id="relancer-tout">Relancer l’audit</button>
+    <progress id="progression" max="1" value="0" aria-labelledby="etat"></progress>
+  </header>
+
+  <main id="contenu" tabindex="-1">
+    <div class="alerte" id="alerte" role="alert" hidden></div>
+
+    <section class="bandeau" id="bandeau" hidden aria-labelledby="bandeau-titre">
+      <div>
+        <h2 id="bandeau-titre" class="bandeau-titre"></h2>
+        <p>Les verdicts et les taux ne tiennent compte des décisions qu’après une nouvelle analyse.</p>
+      </div>
+      <div class="actions">
+        <button type="button" class="bouton" id="relancer-decisions">Réauditer les pages concernées</button>
+        <button type="button" class="bouton secondaire" data-relancer="tout">Tout le site</button>
+      </div>
+    </section>
+
+    <p class="en-cours" id="en-cours"></p>
+
+    <div class="outils">
+      <label class="filtre">
+        <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+        <span class="sr-only">Filtrer</span>
+        <input type="search" id="filtre" placeholder="Filtrer : test, texte, page, sélecteur, fichier…" autocomplete="off">
+        <kbd aria-hidden="true">/</kbd>
+      </label>
+    </div>
+
+    <section id="vue-bord" class="vue" aria-labelledby="titre-bord">
+      <header class="vue-tete grille">
+        <div class="vue-texte">
+          <h2 id="titre-bord">Tableau de bord</h2>
+          <p class="aide">Où sont les erreurs et comment elles se manifestent, en direct.</p>
+        </div>
+      </header>
+
+      <div class="bord" id="bord">
+        <section class="panneau s3" id="carte-score" aria-labelledby="carte-score-titre"></section>
+        <section class="panneau s3" id="carte-erreurs" aria-labelledby="carte-erreurs-titre"></section>
+        <section class="panneau s3" id="carte-pages" aria-labelledby="carte-pages-titre"></section>
+        <section class="panneau s3" id="carte-questions" aria-labelledby="carte-questions-titre"></section>
+
+        <section class="panneau s7" id="carte-themes" aria-labelledby="carte-themes-titre"></section>
+        <section class="panneau s5" id="carte-types" aria-labelledby="carte-types-titre"></section>
+        <section class="panneau s12" id="carte-matrice" aria-labelledby="carte-matrice-titre"></section>
+        <section class="panneau s12" id="carte-gabarit" aria-labelledby="carte-gabarit-titre"></section>
+        <section class="panneau s12" id="carte-ia" aria-labelledby="carte-ia-titre" hidden></section>
+      </div>
+
+      <p class="vide" id="bord-vide" hidden>Aucune donnée pour l’instant : les graphiques apparaissent dès les premières pages analysées.</p>
+    </section>
+
+    <section id="vue-questions" class="vue" aria-labelledby="titre-questions" hidden>
+      <header class="vue-tete grille">
+        <div class="vue-texte">
+          <h2 id="titre-questions">Questions à trancher</h2>
+          <p class="aide">L’outil n’a pas pu conclure seul : tranchez chaque question. Raccourcis : <kbd>P</kbd> problème, <kbd>O</kbd> pas un problème, <kbd>D</kbd> doute, <kbd>J</kbd> <kbd>K</kbd> pour naviguer.</p>
+        </div>
+      </header>
+      <ol class="liste groupee" id="liste-questions"></ol>
+      <p class="vide" hidden>Aucune question pour l’instant.</p>
+    </section>
+
+    <section id="vue-doutes" class="vue" aria-labelledby="titre-doutes" hidden>
+      <header class="vue-tete grille">
+        <div class="vue-texte">
+          <h2 id="titre-doutes">Doutes maintenus</h2>
+          <p class="aide">Questions laissées en doute : à revoir avec un expert.</p>
+        </div>
+      </header>
+      <ol class="liste groupee" id="liste-doutes"></ol>
+      <p class="vide" hidden>Aucun doute maintenu.</p>
+    </section>
+
+    <section id="vue-constats" class="vue" aria-labelledby="titre-constats" hidden>
+      <header class="vue-tete grille">
+        <div class="vue-texte">
+          <h2 id="titre-constats">Non-conformités constatées</h2>
+          <p class="aide">Échecs mesurés par l’outil, avec la zone concernée encadrée en rouge.</p>
+        </div>
+      </header>
+      <ol class="liste" id="liste-constats"></ol>
+      <p class="vide" hidden>Aucune non-conformité pour l’instant.</p>
+    </section>
+
+    <section id="vue-tranchees" class="vue" aria-labelledby="titre-tranchees" hidden>
+      <header class="vue-tete grille">
+        <div class="vue-texte">
+          <h2 id="titre-tranchees">Questions tranchées depuis l’audit</h2>
+          <p class="aide">Une réponse peut être changée tant que l’audit n’a pas été relancé.</p>
+        </div>
+      </header>
+      <ol class="liste groupee" id="liste-tranchees"></ol>
+      <p class="vide" hidden>Aucune question tranchée depuis l’audit.</p>
+    </section>
+
+    <section id="vue-modifications" class="vue" aria-labelledby="titre-modifications" hidden>
+      <header class="vue-tete grille">
+        <div class="vue-texte">
+          <h2 id="titre-modifications">Modifications de l’IA</h2>
+          <p class="aide">Ce que l’IA a changé dans le code, problème par problème. Le verdict vient du réaudit.</p>
+        </div>
+        <div class="vue-actions">
+          <div class="segment" role="group" aria-label="Présentation des différences">
+            <button type="button" data-diff="split" aria-pressed="true">Côte à côte</button>
+            <button type="button" data-diff="unified" aria-pressed="false">Unifié</button>
+          </div>
+        </div>
+      </header>
+      <div class="chiffres" id="chiffres-modifications" role="group" aria-label="Filtrer par verdict"></div>
+      <div id="liste-modifications"></div>
+      <p class="vide" hidden>Aucune modification consignée. L’IA les enregistre avec l’outil <code>consigner_modification</code> après chaque correction.</p>
+    </section>
+
+    <section id="vue-pages" class="vue" aria-labelledby="titre-pages" hidden>
+      <header class="vue-tete grille">
+        <div class="vue-texte">
+          <h2 id="titre-pages">Pages auditées</h2>
+        </div>
+      </header>
+      <div class="tableau">
+        <table>
+          <caption class="sr-only">État de chaque page : taux de conformité des critères, tests non conformes et à valider</caption>
+          <thead><tr><th scope="col">Page</th><th scope="col">État</th><th scope="col" class="nombre">Taux critères</th><th scope="col" class="nombre">Non conformes</th><th scope="col" class="nombre">À valider</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody id="liste-pages"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="vue-fichiers" class="vue" aria-labelledby="titre-fichiers" hidden>
+      <header class="vue-tete grille">
+        <div class="vue-texte">
+          <h2 id="titre-fichiers">Fichiers du rapport</h2>
+          <p class="aide">Écrits à la fin de chaque analyse et après chaque décision.</p>
+        </div>
+      </header>
+      <ul class="fichiers" id="liste-fichiers"></ul>
+      <p class="vide" hidden>Les fichiers seront disponibles à la fin de l’analyse.</p>
+    </section>
+  </main>
+</div>
+
+<dialog class="loupe" id="loupe" aria-labelledby="loupe-titre">
+  <div class="loupe-entete">
+    <h2 id="loupe-titre">Capture</h2>
+    <button type="button" class="bouton secondaire" id="loupe-fermer">Fermer</button>
+  </div>
+  <img id="loupe-image" alt="">
+</dialog>
+<div class="sr-only" id="annonces" aria-live="polite"></div>
+</body>
+</html>

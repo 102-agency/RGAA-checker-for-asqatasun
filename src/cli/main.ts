@@ -4,8 +4,11 @@ import { safeText } from '../security/text.ts'
 import { commandAudit } from './commands/audit.ts'
 import { commandDecide } from './commands/decide.ts'
 import { commandExplain } from './commands/explain.ts'
+import { commandMcp } from './commands/mcp.ts'
 import { commandPending } from './commands/pending.ts'
 import { commandReport } from './commands/report.ts'
+import { commandServe } from './commands/serve.ts'
+import { commandWeb } from './commands/web.ts'
 import { MAIN_HELP } from './help.ts'
 import { toolVersion } from './options.ts'
 
@@ -15,6 +18,9 @@ const COMMANDS: Record<string, (args: string[]) => number | Promise<number>> = {
   pending: commandPending,
   decide: commandDecide,
   explain: commandExplain,
+  serve: commandServe,
+  web: commandWeb,
+  mcp: commandMcp,
 }
 
 export async function main(argv: string[]): Promise<number> {

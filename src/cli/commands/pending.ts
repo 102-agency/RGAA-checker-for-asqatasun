@@ -1,4 +1,5 @@
 import { resolve } from 'node:path'
+import { SCREENSHOT_PATH } from '../../core/capture.ts'
 import { type Catalog, loadCatalog } from '../../core/catalog.ts'
 import { EXIT } from '../../core/errors.ts'
 import type { PendingQuestion } from '../../report/model.ts'
@@ -15,8 +16,6 @@ import {
   outputStyle,
   parseCommand,
 } from '../options.ts'
-
-const SCREENSHOT = /^preuves\/[\p{L}\p{N}][\p{L}\p{N}._-]{0,127}\/[0-9a-f]{12}\.png$/u
 
 /** Bloc lisible décrivant une question : utilisé par `pending` et par `decide` interactif. */
 export function describeQuestion(
@@ -69,7 +68,7 @@ export function describeQuestion(
     lines.push(
       ...wrap(item.snippet, width, indent, label('Code')).map((line) => paint(style, 'dim', line)),
     )
-  if (item.screenshot && SCREENSHOT.test(item.screenshot)) {
+  if (item.screenshot && SCREENSHOT_PATH.test(item.screenshot)) {
     lines.push(...wrap(resolve(outDir, item.screenshot), width, indent, label('Capture')))
   }
   lines.push('')

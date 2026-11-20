@@ -1,4 +1,5 @@
 import { createInterface } from 'node:readline/promises'
+import { DOUBT, isAdmitted } from '../../core/answers.ts'
 import { loadCatalog } from '../../core/catalog.ts'
 import { type Decision, DecisionStore, LIMITS } from '../../core/decisions.ts'
 import { EXIT, UserError } from '../../core/errors.ts'
@@ -49,9 +50,9 @@ function toDecision(
 ): { decision: Decision; item: PendingQuestion } | { refused: string } {
   if (!item)
     return { refused: 'aucune question en attente avec cette empreinte dans le dernier rapport.' }
-  if (!item.answers.includes(answer.answer)) {
+  if (!isAdmitted(answer.answer, item.answers)) {
     return {
-      refused: `réponse « ${safeLine(answer.answer, 60)} » refusée (admises : ${item.answers.join(' | ')}).`,
+      refused: `réponse « ${safeLine(answer.answer, 60)} » refusée (admises : ${[...item.answers, DOUBT].join(' | ')}).`,
     }
   }
   const reason = safeLine(answer.reason, LIMITS.reason)
@@ -97,8 +98,10 @@ async function interactive(
       )
       let answer = ''
       for (;;) {
-        answer = (await rl.question(`  Réponse (${item.answers.join(' | ')} | s | q) : `)).trim()
-        if (answer === 'q' || answer === 's' || item.answers.includes(answer)) break
+        answer = (
+          await rl.question(`  Réponse (${item.answers.join(' | ')} | ${DOUBT} | s | q) : `)
+        ).trim()
+        if (answer === 'q' || answer === 's' || isAdmitted(answer, item.answers)) break
         process.stdout.write(
           paint(style, 'red', `  Réponse non admise : ${safeLine(answer, 60)}\n`),
         )

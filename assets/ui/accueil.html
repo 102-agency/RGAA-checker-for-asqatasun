@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="rgaa-jeton" content="__JETON__">
+<title>RGAA — audits</title>
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/accueil.css">
+<script type="module" src="/accueil.js"></script>
+</head>
+<body class="accueil">
+<a class="evitement" href="#contenu">Aller au contenu</a>
+
+<header class="accueil-barre">
+  <div class="marque">
+    <span class="marque-signe" aria-hidden="true"></span>
+    <span class="marque-nom">RGAA <span class="marque-version">4.1.2</span></span>
+  </div>
+  <div class="theme" role="group" aria-label="Thème d’affichage">
+    <button type="button" data-theme-choix="auto" aria-pressed="true">Auto</button>
+    <button type="button" data-theme-choix="light" aria-pressed="false">Clair</button>
+    <button type="button" data-theme-choix="dark" aria-pressed="false">Sombre</button>
+  </div>
+</header>
+
+<main id="contenu" class="accueil-main" tabindex="-1">
+  <div class="accueil-intro">
+    <h1>Audits d’accessibilité</h1>
+    <p class="aide">Lancez l’analyse d’un site, ou rouvrez un audit déjà fait pour trancher les questions, suivre les corrections et réauditer.</p>
+  </div>
+
+  <div class="alerte" id="alerte" role="alert" hidden></div>
+
+  <div class="accueil-grille">
+    <section class="panneau nouveau" aria-labelledby="titre-nouveau">
+      <div class="panneau-tete">
+        <h2 id="titre-nouveau" class="titre-section">Nouvelle analyse</h2>
+        <p class="panneau-desc">Le site est audité en vrai navigateur, page par page.</p>
+      </div>
+
+      <form id="formulaire" class="formulaire" novalidate>
+        <div class="champ">
+          <label for="champ-url">Adresse du site</label>
+          <input id="champ-url" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" required placeholder="https://www.exemple.fr" list="sites-connus" aria-describedby="aide-url erreur-url">
+          <datalist id="sites-connus"></datalist>
+          <p class="champ-aide" id="aide-url">Un site local fonctionne aussi : <code>http://localhost:3000</code>.</p>
+          <p class="champ-erreur" id="erreur-url" hidden></p>
+        </div>
+
+        <div class="champ">
+          <label for="champ-pages">Pages à analyser <span class="facultatif">facultatif</span></label>
+          <textarea id="champ-pages" name="pages" rows="3" autocomplete="off" spellcheck="false" placeholder="/&#10;/contact&#10;/mentions-legales" aria-describedby="aide-pages"></textarea>
+          <p class="champ-aide" id="aide-pages">Un chemin par ligne. Vide : les pages du sitemap ou, à défaut, celles trouvées en suivant les liens depuis l’adresse (limitées à sa partie du site, par exemple <code>/fr/</code>).</p>
+        </div>
+
+        <details class="avance" id="avance">
+          <summary>Options avancées</summary>
+          <div class="avance-corps">
+            <fieldset class="champ">
+              <legend>Thématiques <span class="facultatif">toutes par défaut</span></legend>
+              <div class="themes" id="champ-themes"></div>
+            </fieldset>
+
+            <div class="champ duo">
+              <div>
+                <label for="champ-limite">Pages au plus</label>
+                <input id="champ-limite" name="limit" type="number" min="1" max="10000" step="1" inputmode="numeric" value="500">
+              </div>
+              <div>
+                <label for="champ-captures">Captures</label>
+                <select id="champ-captures" name="captures"></select>
+              </div>
+            </div>
+
+            <div class="champ">
+              <label for="champ-asqatasun">Exports Asqatasun <span class="facultatif">dossier, facultatif</span></label>
+              <input id="champ-asqatasun" name="asqatasunDir" type="text" autocomplete="off" spellcheck="false" placeholder="./exports-asqatasun" aria-describedby="aide-asqatasun">
+              <p class="champ-aide" id="aide-asqatasun">Les verdicts d’Asqatasun sont fusionnés à ceux de l’outil.</p>
+            </div>
+
+            <fieldset class="champ">
+              <legend>Pages derrière une connexion <span class="facultatif">facultatif</span></legend>
+              <label for="champ-session" class="sous-libelle">Fichier d’état de session</label>
+              <input id="champ-session" name="storageState" type="text" autocomplete="off" spellcheck="false" placeholder="./auth.json" aria-describedby="aide-session">
+              <p class="champ-aide" id="aide-session">Obtenu une fois avec <code>npx playwright codegen --save-storage=auth.json</code>.</p>
+              <label for="champ-cookies" class="sous-libelle">Cookies <span class="facultatif">un <code>nom=valeur</code> par ligne</span></label>
+              <textarea id="champ-cookies" name="cookies" rows="2" autocomplete="off" spellcheck="false" aria-describedby="aide-cookies"></textarea>
+              <p class="champ-aide" id="aide-cookies">Posés sur ce site seulement, jamais écrits dans le rapport.</p>
+            </fieldset>
+          </div>
+        </details>
+
+        <label class="case" id="case-decisions" hidden>
+          <input type="checkbox" id="champ-decisions" checked>
+          <span id="libelle-decisions">Reprendre les décisions du dernier audit de ce site</span>
+        </label>
+
+        <p class="champ-erreur" id="erreur-formulaire" role="alert" hidden></p>
+        <div class="formulaire-actions">
+          <button type="submit" class="bouton" id="lancer">Lancer l’analyse</button>
+          <p class="champ-aide" id="note-lancer" hidden></p>
+        </div>
+      </form>
+    </section>
+
+    <section class="audits" aria-labelledby="titre-audits">
+      <div class="audits-tete">
+        <h2 id="titre-audits" class="titre-section">Audits déjà faits</h2>
+        <label class="filtre" id="filtre-zone" hidden>
+          <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+          <span class="sr-only">Filtrer les audits</span>
+          <input type="search" id="filtre" placeholder="Filtrer par site ou par date" autocomplete="off">
+        </label>
+      </div>
+
+      <section class="bandeau" id="en-cours" aria-live="polite" hidden>
+        <div>
+          <h3 class="bandeau-titre" id="en-cours-titre"></h3>
+          <p id="en-cours-texte"></p>
+        </div>
+        <a class="bouton" id="en-cours-lien" href="/">Suivre l’analyse</a>
+      </section>
+
+      <div id="sites" class="sites"></div>
+      <p class="vide" id="vide" hidden>Aucun audit pour l’instant. Lancez une première analyse avec le formulaire.</p>
+      <p class="vide" id="vide-filtre" hidden>Aucun audit ne correspond au filtre.</p>
+    </section>
+  </div>
+</main>
+<div class="sr-only" id="annonces" aria-live="polite"></div>
+</body>
+</html>
