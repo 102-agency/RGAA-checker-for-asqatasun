@@ -258,6 +258,111 @@ describe('sitemap', () => {
     ).rejects.toThrow(/donner les chemins/)
   })
 
+  const site = (pages: Record<string, string>, extra: Record<string, () => Response> = {}) =>
+    (async (input: URL | string) => {
+      const url = new URL(String(input))
+      const key = `${url.pathname}${url.search}`
+      const other = extra[key]
+      if (other) return other()
+      const body = pages[url.pathname]
+      return body === undefined
+        ? new Response('introuvable', { status: 404 })
+        : new Response(body, { status: 200, headers: { 'content-type': 'text/html' } })
+    }) as typeof fetch
+  const links = (...hrefs: string[]) =>
+    `<html><body>${hrefs.map((href) => `<a href="${href}">x</a>`).join('')}</body></html>`
+
+  it('sans sitemap, suit les liens internes depuis l’adresse donnée', async () => {
+    const found = await discoverPages(new URL('http://localhost:3000/'), [], {
+      maxPages: 50,
+      fetch: site({
+        '/': links(
+          '/a',
+          '/b/',
+          'https://autre.fr/x',
+          'mailto:a@b.fr',
+          '/doc.pdf',
+          '#haut',
+          '/a?x=1',
+        ),
+        '/a': links('/c', '/'),
+        '/b': links('/a'),
+        '/c': links(),
+        '/doc.pdf': '%PDF',
+      }),
+    })
+    expect(found.via).toBe('liens')
+    expect(found.urls).toEqual([
+      'http://localhost:3000/',
+      'http://localhost:3000/a',
+      'http://localhost:3000/b',
+      'http://localhost:3000/c',
+    ])
+  })
+
+  it('reste dans la partie du site donnée (/fr/) et applique le plafond', async () => {
+    const pages = {
+      '/fr': links('/fr/a', '/en/a', '/fr/b', '/fr/c'),
+      '/fr/a': links(),
+      '/fr/b': links(),
+      '/fr/c': links(),
+      '/en/a': links(),
+    }
+    const found = await discoverPages(new URL('http://localhost:3000/fr/'), [], {
+      maxPages: 50,
+      fetch: site(pages),
+    })
+    expect(found.urls).toEqual([
+      'http://localhost:3000/fr',
+      'http://localhost:3000/fr/a',
+      'http://localhost:3000/fr/b',
+      'http://localhost:3000/fr/c',
+    ])
+    const capped = await discoverPages(new URL('http://localhost:3000/fr/'), [], {
+      maxPages: 2,
+      fetch: site(pages),
+    })
+    expect(capped.urls).toHaveLength(2)
+    expect(capped.dropped).toBeGreaterThan(0)
+  })
+
+  it('ignore les pages qui ne sont pas du HTML', async () => {
+    const found = await discoverPages(new URL('http://localhost:3000/'), [], {
+      maxPages: 10,
+      fetch: site(
+        { '/': links('/json', '/ok'), '/ok': links() },
+        {
+          '/json': () =>
+            new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+        },
+      ),
+    })
+    expect(found.urls).toEqual(['http://localhost:3000/', 'http://localhost:3000/ok'])
+  })
+
+  it('un « sitemap » qui est une page HTML n’en est pas un ; robots.txt est lu avec sa requête', async () => {
+    const urlset = '<urlset><url><loc>https://prod.fr/vrai</loc></url></urlset>'
+    const found = await discoverPages(new URL('http://localhost:3000/'), [], {
+      maxPages: 10,
+      fetch: site(
+        { '/sitemap.xml': '<html>accueil</html>', '/': links('/a'), '/a': links() },
+        {
+          '/robots.txt': () => new Response('Sitemap: /th/?sitemap.xml', { status: 200 }),
+          '/th/?sitemap.xml': () => new Response(urlset, { status: 200 }),
+        },
+      ),
+    })
+    expect(found.via).toBe('sitemap')
+    expect(found.urls).toContain('http://localhost:3000/vrai')
+    // Sans le sitemap de robots.txt, c'est l'exploration des liens qui prend le relais.
+    const crawled = await discoverPages(new URL('http://localhost:3000/'), [], {
+      maxPages: 10,
+      fetch: site({ '/sitemap.xml': '<html>accueil</html>', '/': links('/a'), '/a': links() }),
+    })
+    expect(crawled.via).toBe('liens')
+    expect(crawled.urls).toEqual(['http://localhost:3000/', 'http://localhost:3000/a'])
+  })
+
   it('refuse un sitemap trop volumineux', async () => {
     const big = `<urlset>${'x'.repeat(5_000)}</urlset>`
     await expect(
