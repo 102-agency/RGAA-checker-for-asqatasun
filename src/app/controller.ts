@@ -1,7 +1,9 @@
 import { type Catalog, loadCatalog } from '../core/catalog.ts'
+import { ChangeStore } from '../core/changes.ts'
 import { DecisionStore } from '../core/decisions.ts'
 import { errorMessage, UserError } from '../core/errors.ts'
 import type { PageReport } from '../core/types.ts'
+import type { ReportDocument } from '../report/model.ts'
 import { writeToFix } from '../report/write.ts'
 import { LiveState } from '../server/state.ts'
 import {
@@ -33,6 +35,7 @@ export class AuditController {
       new DecisionStore(settings.decisionsDir),
       () => this.rewriteToFix(),
     )
+    this.state.attachChanges(new ChangeStore(settings.outDir))
   }
 
   get running(): boolean {
@@ -54,7 +57,10 @@ export class AuditController {
       config.decisionsDir !== this.settings.decisionsDir ||
       config.outDir !== this.settings.outDir
     this.settings = config
-    if (retarget) this.state.retarget(config.base.href, new DecisionStore(config.decisionsDir))
+    if (retarget) {
+      this.state.retarget(config.base.href, new DecisionStore(config.decisionsDir))
+      this.state.attachChanges(new ChangeStore(config.outDir))
+    }
   }
 
   /** Après une décision : les fichiers « à corriger » la reflètent sans attendre la relance. */
@@ -71,6 +77,27 @@ export class AuditController {
     }
   }
 
+  /** Les pages revues par cet audit disent si les modifications de l'IA ont corrigé, pas assez corrigé ou cassé quelque chose. */
+  private verifyChanges(
+    report: ReportDocument,
+    audited: string[] | null,
+    since: string,
+    before: ReportDocument | undefined,
+  ): void {
+    try {
+      const sameSite = before && new URL(before.meta.baseUrl).origin === this.settings.base.origin
+      new ChangeStore(this.settings.outDir).verify(report, {
+        audited,
+        since,
+        before: sameSite ? before : undefined,
+        date: new Date().toISOString(),
+      })
+      this.state.refreshChanges()
+    } catch (error) {
+      this.hooks.warn?.(`Modifications de l'IA non vérifiées : ${errorMessage(error)}`)
+    }
+  }
+
   /**
    * Lance un audit. `paths` absent : le périmètre de départ (tout le sitemap,
    * ou les chemins donnés au lancement). `paths` donné : ces pages seulement,
@@ -80,9 +107,13 @@ export class AuditController {
     options: {
       paths?: string[]
       onPage?: (report: PageReport, done: number, total: number) => void
+      /** Rapport d'avant l'audit (sinon le dernier de l'état en direct), pour repérer les régressions. */
+      before?: ReportDocument
     } = {},
   ): Promise<SessionResult> {
     if (this.current) throw new UserError('Un audit est déjà en cours : attendre sa fin.')
+    const startedAt = new Date().toISOString()
+    const before = options.before ?? this.state.lastReport
     const decisionStore = new DecisionStore(this.settings.decisionsDir)
     this.state.begin(decisionStore)
     const partial = options.paths !== undefined
@@ -105,6 +136,7 @@ export class AuditController {
     })
       .then((result) => {
         this.state.finish(result.report)
+        this.verifyChanges(result.report, partial ? (options.paths ?? []) : null, startedAt, before)
         return result
       })
       .catch((error: unknown) => {

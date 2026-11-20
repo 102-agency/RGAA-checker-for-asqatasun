@@ -35,8 +35,36 @@ l'indiquer par `--browser-libs <dossier>` ou `RGAA_BROWSER_LIBS`.
 
 ## Utilisation
 
+### Le site complet : `pnpm dev`
+
 ```bash
-rgaa audit http://localhost:3000                    # toutes les pages du sitemap
+pnpm dev            # http://127.0.0.1:4747/ (le port suivant si 4747 est pris)
+```
+
+Comme n'importe quel projet web : la commande démarre le site et le recharge quand le code ou
+l'interface changent. Sur la **page d'accueil** :
+
+- **Nouvelle analyse** : l'adresse du site, éventuellement des pages précises (sans pages ni
+  sitemap, l'outil suit les liens depuis l'adresse donnée, sans sortir de son chemin :
+  `https://site.fr/fr/` reste sous `/fr`) ; en options
+  avancées, les thématiques, le nombre de pages, les captures, le dossier d'exports Asqatasun et
+  la connexion (fichier d'état de session, cookies). L'analyse démarre et s'ouvre en direct.
+- **Audits déjà faits**, regroupés par site, du plus récent au plus ancien : date, nombre de
+  pages, taux, pages non conformes, questions à trancher, évolution depuis l'audit précédent.
+  Un clic ouvre la vue détaillée de l'audit (décrite plus bas).
+
+Chaque lancement crée un dossier daté `audits/<site>-<date>/` (`rapport/` et `decisions/`) ; si
+le site a déjà été audité, ses décisions sont reprises (case à décocher). Les anciens dossiers
+d'audit et `./rgaa-report` sont reconnus. Un seul audit tourne à la fois. `RGAA_AUDITS_DIR`
+change le dossier, `PORT` le port ; `rgaa web --help` donne les autres options.
+
+`pnpm start` sert la version compilée (après `pnpm build`). L'ancien `pnpm dev` (la ligne de
+commande sans compiler) devient `pnpm cli <commande>`.
+
+### En ligne de commande
+
+```bash
+rgaa audit http://localhost:3000                    # toutes les pages du sitemap (sinon : en suivant les liens)
 rgaa audit https://www.exemple.fr / /contact        # certaines pages
 rgaa audit http://localhost:3000 --theme 1,3        # certaines thématiques
 rgaa audit http://localhost:3000 --test 10.7.1      # un test
@@ -53,6 +81,7 @@ rgaa explain 1.1.1           # l'intitulé officiel, les cas particuliers, la co
 rgaa audit http://localhost:3000 --serve            # suivi en direct dans le navigateur
 rgaa audit http://localhost:3000 /contact --merge   # réaudite une page après correction
 rgaa serve                   # rouvre l'interface sur le dernier rapport
+rgaa web                     # le site complet : accueil, audits, nouvelle analyse (= pnpm dev)
 rgaa mcp                     # serveur MCP : l'outil piloté par une IA
 ```
 
@@ -73,7 +102,18 @@ au fil de l'eau :
   le bouton les propose ; les questions de classement (image décorative ou informative,
   tableau de données ou de mise en forme) affichent leurs réponses telles quelles ;
 - **Doutes** : questions laissées en doute, à revoir avec un expert ;
-- **Tranchées**, **Pages** (état, taux, bouton « Réauditer »), **Fichiers**.
+- **Tranchées**, **Pages** (état, taux, bouton « Réauditer »), **Fichiers** ;
+- **Avant / après** (seulement si une IA est connectée en MCP, ou si `corrections.json` existe
+  dans le dossier du rapport) : ce que l'IA a changé dans le code, **problème par problème**,
+  comme la revue des modifications d'un éditeur — fichier, ligne, texte avant et après
+  (côte à côte ou unifié, mots modifiés surlignés), et le verdict du réaudit : _corrigée_,
+  _persiste_, _régression_ ou _à vérifier_. La même différence apparaît sous chaque
+  non-conformité concernée.
+
+L'interface suit une grille suisse (12 colonnes, filets fins, un seul accent) en thème clair
+ou sombre : **Auto** suit le système, le choix est gardé dans le navigateur. Au clavier :
+`/` filtre, `J` et `K` passent d'une ligne à l'autre, `P`, `O`, `D` répondent à la question
+ouverte.
 
 Les décisions sont enregistrées dans `rgaa-decisions/` dès le clic : une décision prise
 pendant l'analyse vaut aussitôt pour les pages qui restent. Les verdicts et les taux n'en
@@ -100,9 +140,9 @@ L'outil fonctionne sans IA. Une IA peut toutefois l'utiliser de deux façons :
 2. **Par le serveur MCP** : `rgaa mcp` expose `auditer_site`, `auditer_pages` (fusion au
    rapport, avec la **différence avant/après** : corrigé, persistant, régression),
    `etat_audit`, `lire_a_corriger` (format `compact` par défaut, filtrable par page, par test ou
-   par type de correction), `resultats_complets`, `trancher_question`, `voir_capture` (l'image PNG)
-   et `expliquer_rgaa`. La boucle : auditer → lire → corriger le code → réauditer les pages
-   corrigées. Pour Claude Code, dans `.mcp.json` :
+   par type de correction), `resultats_complets`, `trancher_question`, `consigner_modification`,
+   `voir_capture` (l'image PNG) et `expliquer_rgaa`. La boucle : auditer → lire → corriger le
+   code → **consigner la modification** → réauditer les pages corrigées. Pour Claude Code, dans `.mcp.json` :
 
    ```json
    {
@@ -116,8 +156,18 @@ L'outil fonctionne sans IA. Une IA peut toutefois l'utiliser de deux façons :
    ```
 
    `--sites` limite les sites que l'IA peut faire auditer (recommandé) ; `--serve` ouvre en plus
-   l'interface web pour suivre l'IA en direct ; les décisions de l'IA sont signées `--by`
+   l'interface web pour suivre l'IA en direct (avec l'avant/après de chacune de ses modifications) ;
+   les décisions de l'IA sont signées `--by`
    (défaut « IA (MCP) »). Aucun modèle n'est appelé par l'outil.
+
+   **Avant / après des modifications.** Après chaque correction du code, l'IA appelle
+   `consigner_modification` (test visé, pages, fichier, texte avant, texte après, ligne et note
+   facultatives ; le passage modifié seulement, 8 000 caractères au plus). L'entrée est écrite
+   dans `corrections.json`, à côté du rapport. Au réaudit suivant, chaque modification reçoit
+   son verdict d'après les pages revues : **corrigée** (le test n'échoue plus), **persiste**
+   (il échoue encore) ou **régression** (un autre test se met à échouer sur ces pages). Le
+   bilan de `auditer_pages` le rappelle à l'IA, et l'interface l'affiche. Ce que l'IA consigne
+   est une donnée : jamais exécuté, jamais lu comme un chemin, affiché en texte seulement.
 
    **Ce que l'IA peut trancher** (`--decide`, imposé par le serveur et non par une consigne) :
    `tout` (défaut) accepte toute réponse admise ; `doute` n'accepte que « doute » ; `aucune` ne
@@ -186,6 +236,7 @@ Trois niveaux de détail : `--detail synthese`, `problemes` (défaut), `tout`.
 | `rapport.md`            | le même, en Markdown (à joindre à un ticket ou à versionner)                    |
 | `rapport.json`          | données brutes, relues par `report`, `pending`, `decide`, `serve` et `mcp`      |
 | `preuves/`              | captures encadrées des zones en échec (`echecs/`) et des questions (`<sujet>/`) |
+| `corrections.json`      | modifications du code consignées par l'IA (MCP) et verdict du réaudit           |
 
 Les captures montrent l'élément entouré de rouge avec une marge de contexte ; elles sont
 prises sur la page principale (1280 × 900), 40 échecs au plus par page, une seule fois par

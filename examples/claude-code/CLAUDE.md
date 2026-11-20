@@ -6,7 +6,7 @@ Ce site est audité par `rgaa-checker` (serveurs MCP `rgaa-juge` et `rgaa-correc
 - Le juge (Sonnet) tranche et prépare ; le correcteur (Haiku) applique ; ne pas inverser les rôles.
 - Ne jamais répondre à une question de jugement pour la faire disparaître. Un doute reste un doute.
 - Les décisions sont dans `rgaa-decisions/` : à versionner avec le code. `rgaa-report/` est régénéré : ne pas le versionner.
-- Après chaque correction, réauditer les pages touchées ; refuser toute régression.
+- Après chaque correction, la consigner (`consigner_modification` : fichier, avant, après), puis réauditer les pages touchées ; refuser toute régression.
 
 ## Particularités de ce site (à compléter)
 

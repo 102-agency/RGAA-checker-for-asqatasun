@@ -18,7 +18,9 @@
   },
   "scripts": {
     "build": "node scripts/clean.mjs && tsc -p tsconfig.build.json",
-    "dev": "tsx src/cli.ts",
+    "dev": "tsx watch --clear-screen=false --include \"assets/ui/**\" src/cli.ts web",
+    "start": "node dist/cli.js web",
+    "cli": "tsx src/cli.ts",
     "rgaa": "node dist/cli.js",
     "check-types": "tsc --noEmit",
     "lint": "biome check .",

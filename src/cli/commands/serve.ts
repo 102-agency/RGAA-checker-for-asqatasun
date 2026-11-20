@@ -1,12 +1,11 @@
 import { AuditController } from '../../app/controller.ts'
-import type { SessionConfig } from '../../app/session.ts'
+import { configFromReport } from '../../app/session.ts'
 import { EXIT } from '../../core/errors.ts'
 import { CAPTURE_MODES } from '../../core/runner.ts'
 import { REPORT_JSON, readReport } from '../../report/parse.ts'
 import { paint } from '../../report/style.ts'
 import { progressLine } from '../../report/text.ts'
 import { containedPath } from '../../security/fs.ts'
-import { parseSiteUrl } from '../../security/url.ts'
 import { DEFAULT_PORT, startUiServer } from '../../server/http.ts'
 import { SERVE_HELP } from '../help.ts'
 import {
@@ -19,24 +18,7 @@ import {
 } from '../options.ts'
 import { waitForInterrupt } from './audit.ts'
 
-/** Configuration d'audit reconstituée d'après un rapport (pour relancer depuis l'interface ou le MCP). */
-export function configFromReport(
-  report: ReturnType<typeof readReport>,
-  outDir: string,
-  local: Pick<SessionConfig, 'concurrency' | 'browserLibs' | 'sandbox' | 'captures' | 'limit'>,
-): SessionConfig {
-  return {
-    ...local,
-    base: parseSiteUrl(report.meta.baseUrl),
-    paths: report.meta.pagesSource === 'arguments' ? report.pages.map((page) => page.path) : [],
-    scope: report.meta.scope,
-    outDir,
-    decisionsDir: report.meta.decisionsDir,
-    asqatasunDir: report.meta.asqatasunDir,
-    strict: report.meta.strict,
-    merge: false,
-  }
-}
+export { configFromReport }
 
 export async function commandServe(args: string[]): Promise<number> {
   const { values } = parseCommand('serve', args, {

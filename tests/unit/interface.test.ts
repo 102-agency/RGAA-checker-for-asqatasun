@@ -7,6 +7,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { answerGroups, answerMeaning, isAdmitted } from '../../src/core/answers.ts'
 import { cookieInputs, parseCookie, resolveAuth } from '../../src/core/auth.ts'
 import { loadCatalog } from '../../src/core/catalog.ts'
+import {
+  CHANGE_LIMITS,
+  type Change,
+  ChangeError,
+  ChangeStore,
+  cleanChangeInput,
+  judgeChanges,
+  renderChangeVerdicts,
+} from '../../src/core/changes.ts'
 import { type Decision, DecisionStore } from '../../src/core/decisions.ts'
 import type { AuditResult } from '../../src/core/runner.ts'
 import type { PageReport, TestResult } from '../../src/core/types.ts'
@@ -294,6 +303,22 @@ describe('interface web locale', () => {
     expect(snapshot.questions[0].key).toBe(KEY)
   })
 
+  it('donne au tableau de bord les 13 thématiques du référentiel, avec leurs totaux', async () => {
+    const snapshot = JSON.parse(
+      (await raw('/api/etat', { headers: { 'x-rgaa-jeton': server.token } })).body,
+    )
+    const themes = snapshot.themes as {
+      id: number
+      label: string
+      criteria: number
+      tests: number
+    }[]
+    expect(themes.map((theme) => theme.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13])
+    expect(themes[0]).toMatchObject({ id: 1, label: expect.stringMatching(/image/i) })
+    expect(themes.reduce((sum, theme) => sum + theme.tests, 0)).toBe(catalog.tests.length)
+    expect(themes.reduce((sum, theme) => sum + theme.criteria, 0)).toBe(catalog.criteria.size)
+  })
+
   it('ne sert que les fichiers du rapport et les captures', async () => {
     expect((await raw('/a-corriger.md')).status).toBe(200)
     expect((await raw(`/${SHOT}`)).headers['content-type']).toBe('image/png')
@@ -404,6 +429,7 @@ describe('serveur MCP', () => {
       'lire_a_corriger',
       'resultats_complets',
       'trancher_question',
+      'consigner_modification',
       'voir_capture',
       'expliquer_rgaa',
     ])
@@ -706,5 +732,292 @@ describe('authentification des pages', () => {
   it('sans réglage, aucune authentification', () => {
     expect(resolveAuth(undefined, base)).toBeUndefined()
     expect(resolveAuth({ cookies: [] }, base)).toBeUndefined()
+  })
+})
+
+describe('journal des modifications de l’IA', () => {
+  const known = new Set(catalog.byTest.keys())
+  const input = (over: Partial<Parameters<typeof cleanChangeInput>[0]> = {}) => ({
+    test: '1.1.1',
+    pages: ['/'],
+    file: 'src/Logo.tsx',
+    before: '<img src="a.png">',
+    after: '<img src="a.png" alt="Logo">',
+    by: 'IA test',
+    ...over,
+  })
+  const change = (over: Partial<Change> = {}): Change => ({
+    id: 'aaaaaaaaaaaa',
+    at: '2026-01-01T10:00:00.000Z',
+    by: 'IA test',
+    test: '1.1.1',
+    pages: ['/'],
+    file: 'src/Logo.tsx',
+    before: 'a',
+    after: 'b',
+    ...over,
+  })
+  const judge = (
+    changes: Change[],
+    now: ReportDocument,
+    options: { audited?: string[] | null; before?: ReportDocument; since?: string } = {},
+  ) =>
+    judgeChanges(changes, now, {
+      audited: options.audited ?? null,
+      since: options.since ?? '2026-01-01T12:00:00.000Z',
+      before: options.before,
+      date: '2026-01-01T12:05:00.000Z',
+    })
+
+  it('valide l’enregistrement et refuse ce qui n’a pas de sens', () => {
+    expect(cleanChangeInput(input({ line: 12, note: ' pour le test ' }), known)).toMatchObject({
+      test: '1.1.1',
+      line: 12,
+      note: 'pour le test',
+    })
+    const refused = (over: Parameters<typeof input>[0]) =>
+      expect(() => cleanChangeInput(input(over), known)).toThrow(ChangeError)
+    refused({ test: '99.9.9' })
+    refused({ test: '1.1' })
+    refused({ pages: [] })
+    refused({ pages: ['contact'] })
+    refused({ file: '  ' })
+    refused({ before: 'x', after: 'x' })
+    refused({ before: '', after: '' })
+    refused({ after: 'x'.repeat(CHANGE_LIMITS.code + 1) })
+    refused({ line: 0 })
+    refused({ occurrence: 'pas-une-empreinte' })
+  })
+
+  it('garde le code tel quel mais retire les séquences de contrôle', () => {
+    const clean = cleanChangeInput(
+      input({ before: `\u001b[31m${HOSTILE}\r\nligne 2`, after: 'x\u0007' }),
+      known,
+    )
+    expect(clean.before).toBe(`${HOSTILE}\nligne 2`)
+    expect(clean.after).toBe('x')
+  })
+
+  it('enregistre, relit et borne le journal sur disque', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rgaa-changes-'))
+    const store = new ChangeStore(dir)
+    expect(store.exists()).toBe(false)
+    expect(store.list()).toEqual([])
+    const first = store.add(cleanChangeInput(input(), known))
+    expect(store.exists()).toBe(true)
+    expect(store.list()).toEqual([first])
+    expect(first.id).toMatch(/^[0-9a-f]{12}$/)
+    for (let index = 0; index < CHANGE_LIMITS.entries + 5; index++) {
+      store.add(cleanChangeInput(input({ after: `v${index}` }), known))
+    }
+    const kept = store.list()
+    expect(kept).toHaveLength(CHANGE_LIMITS.entries)
+    expect(kept.some((entry) => entry.id === first.id)).toBe(false)
+  })
+
+  it('refuse un journal mal formé plutôt que de l’ignorer', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rgaa-changes-bad-'))
+    writeFileSync(join(dir, 'corrections.json'), JSON.stringify({ changes: [{ id: 'x' }] }))
+    expect(() => new ChangeStore(dir).list()).toThrow()
+  })
+
+  it('corrigée quand le test n’échoue plus sur la page', () => {
+    const [done] = judge([change()], report([page('/', 'C')]))
+    expect(done?.verdict).toMatchObject({ state: 'corrigee', remaining: [], introduced: [] })
+  })
+
+  it('persiste quand le test échoue toujours', () => {
+    const [done] = judge([change()], report([page('/', 'NC')]))
+    expect(done?.verdict).toMatchObject({ state: 'persiste', remaining: ['1.1.1 sur /'] })
+  })
+
+  it('régression quand un autre test se met à échouer sur la page', () => {
+    const before = report([page('/', 'C')])
+    const after = report([page('/', 'NC')])
+    const [done] = judge([change({ test: '2.1.1' })], after, { before })
+    expect(done?.verdict).toMatchObject({ state: 'regression', introduced: ['1.1.1 sur /'] })
+  })
+
+  it('ne juge ni une modification postérieure à l’audit ni une page non revue', () => {
+    const now = report([page('/', 'C'), page('/contact', 'C')])
+    const later = change({ at: '2026-01-01T13:00:00.000Z' })
+    expect(judge([later], now)[0]?.verdict).toBeUndefined()
+    expect(judge([change()], now, { audited: ['/contact'] })[0]?.verdict).toBeUndefined()
+    // Toutes les pages visées doivent avoir été revues pour conclure.
+    const two = change({ pages: ['/', '/contact'] })
+    expect(judge([two], now, { audited: ['/'] })[0]?.verdict).toBeUndefined()
+    expect(judge([two], now, { audited: ['/', '/contact'] })[0]?.verdict?.state).toBe('corrigee')
+  })
+
+  it('met à jour le verdict à chaque audit et ne réécrit rien sans changement', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rgaa-changes-verify-'))
+    const store = new ChangeStore(dir)
+    store.add(cleanChangeInput(input(), known), new Date('2026-01-01T10:00:00.000Z'))
+    const options = {
+      audited: null,
+      since: '2026-01-01T12:00:00.000Z',
+      date: '2026-01-01T12:05:00.000Z',
+    }
+    expect(store.verify(report([page('/', 'NC')]), options)[0]?.verdict?.state).toBe('persiste')
+    expect(store.list()[0]?.verdict?.state).toBe('persiste')
+    expect(store.verify(report([page('/', 'C')]), options)[0]?.verdict?.state).toBe('corrigee')
+    const version = store.version()
+    store.verify(report([page('/', 'C')]), options)
+    expect(store.version()).toBe(version)
+  })
+
+  it('résume les verdicts pour l’IA', () => {
+    const text = renderChangeVerdicts([
+      change({
+        verdict: { state: 'persiste', date: 'd', remaining: ['1.1.1 sur /'], introduced: [] },
+      }),
+      change({ id: 'bbbbbbbbbbbb', test: '2.1.1' }),
+    ])
+    expect(text).toContain('1 persistante(s)')
+    expect(text).toContain('1 à vérifier')
+    expect(text).toContain('PERSISTE (échec restant : 1.1.1 sur /)')
+    expect(renderChangeVerdicts([])).toBe('')
+  })
+})
+
+describe('outil MCP consigner_modification', () => {
+  const options = (decide: DecideMode, dir: string) => ({
+    outDir: dir,
+    decisionsDir: join(dir, 'decisions'),
+    concurrency: 1,
+    captures: 'aucune' as const,
+    sandbox: true,
+    sites: ['https://exemple.fr'],
+    by: 'Haiku test',
+    decide,
+    serve: false,
+    port: 0,
+    log: () => {},
+  })
+  const context = { progress: () => {} }
+  const args = {
+    test: '1.1.1',
+    chemins: ['/'],
+    fichier: 'src/Logo.tsx',
+    avant: '<img src="a.png">',
+    apres: '<img src="a.png" alt="Logo">',
+    ligne: 8,
+    note: 'alt ajouté',
+  }
+
+  it('est proposé quel que soit le rôle, y compris « aucune »', () => {
+    for (const mode of ['tout', 'doute', 'aucune'] as const) {
+      expect(toolsFor(mode).map((tool) => tool.name)).toContain('consigner_modification')
+    }
+  })
+
+  it('enregistre la modification signée du serveur, et la relit', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rgaa-mcp-change-'))
+    const tools = new RgaaTools(options('aucune', dir))
+    const done = await tools.call('consigner_modification', args, context)
+    expect(done.content[0]?.text).toContain('auditer_pages')
+    const [saved] = new ChangeStore(dir).list()
+    expect(saved).toMatchObject({
+      test: '1.1.1',
+      pages: ['/'],
+      file: 'src/Logo.tsx',
+      line: 8,
+      by: 'Haiku test',
+      note: 'alt ajouté',
+    })
+    expect(saved?.verdict).toBeUndefined()
+  })
+
+  it('refuse un test inconnu, un avant identique à l’après, un chemin sans « / »', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rgaa-mcp-change-bad-'))
+    const tools = new RgaaTools(options('tout', dir))
+    const attempt = (over: Record<string, unknown>) =>
+      tools.call('consigner_modification', { ...args, ...over }, context)
+    await expect(attempt({ test: '99.9.9' })).rejects.toThrow(/Test inconnu/)
+    await expect(attempt({ apres: args.avant })).rejects.toThrow(/identiques/)
+    await expect(attempt({ chemins: ['contact'] })).rejects.toThrow(/commencer par/)
+    await expect(attempt({ fichier: undefined })).rejects.toThrow()
+    expect(new ChangeStore(dir).list()).toEqual([])
+  })
+})
+
+describe('interface web : modifications de l’IA', () => {
+  let dir: string
+  let server: UiServer
+  let state: LiveState
+  const get = (path: string, token: string | undefined = server.token) =>
+    fetch(`http://127.0.0.1:${server.port}${path}`, {
+      headers: token ? { 'x-rgaa-jeton': token } : {},
+    })
+
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'rgaa-ui-changes-'))
+    const doc = report([page('/')])
+    writeReport(dir, doc, catalog)
+    state = new LiveState('https://exemple.fr/', catalog, new DecisionStore(join(dir, 'decisions')))
+    state.load(doc)
+    state.attachChanges(new ChangeStore(dir))
+    server = await startUiServer({ state, outDir: dir, port: 0 })
+  })
+  afterAll(async () => {
+    await server.close()
+  })
+
+  it('sans IA connectée ni journal : rien à montrer', async () => {
+    const snapshot = (await (await get('/api/etat')).json()) as { mcp: boolean }
+    expect(snapshot.mcp).toBe(false)
+    const list = (await (await get('/api/modifications')).json()) as {
+      mcp: boolean
+      changes: unknown[]
+    }
+    expect(list).toEqual({ mcp: false, changes: [] })
+  })
+
+  it('exige le jeton de session', async () => {
+    expect((await get('/api/modifications', '')).status).toBe(403)
+  })
+
+  it('prévient les clients quand le journal change, même écrit par un autre processus', async () => {
+    const events: { type: string; mcp?: boolean }[] = []
+    const stop = state.subscribe((event) => events.push(event))
+    new ChangeStore(dir).add(
+      cleanChangeInput(
+        {
+          test: '1.1.1',
+          pages: ['/'],
+          file: 'src/Logo.tsx',
+          before: '<img src="a.png">',
+          after: '<img src="a.png" alt="Logo">',
+          by: 'Haiku test',
+        },
+        new Set(catalog.byTest.keys()),
+      ),
+    )
+    state.refreshChanges()
+    state.refreshChanges()
+    stop()
+    expect(events).toEqual([{ type: 'modifications', mcp: true }])
+  })
+
+  it('donne les modifications avec l’exigence visée, et signale la connexion', async () => {
+    const snapshot = (await (await get('/api/etat')).json()) as { mcp: boolean }
+    expect(snapshot.mcp).toBe(true)
+    const list = (await (await get('/api/modifications')).json()) as {
+      mcp: boolean
+      changes: { test: string; requirement: string; file: string; after: string }[]
+    }
+    expect(list.mcp).toBe(true)
+    expect(list.changes).toHaveLength(1)
+    expect(list.changes[0]).toMatchObject({ test: '1.1.1', file: 'src/Logo.tsx' })
+    expect(list.changes[0]?.requirement.length).toBeGreaterThan(10)
+  })
+
+  it('sert le script de thème, sans ressource extérieure', async () => {
+    const response = await fetch(`http://127.0.0.1:${server.port}/theme.js`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('javascript')
+    const page = await (await fetch(`http://127.0.0.1:${server.port}/`)).text()
+    expect(page).not.toMatch(/(?:src|href)="https?:/)
+    expect(page).not.toMatch(/\sstyle=/)
   })
 })

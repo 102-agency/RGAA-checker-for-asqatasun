@@ -23,6 +23,10 @@ Puis remplacer `/CHEMIN/VERS/rgaa-checker` et l'adresse du site dans `.mcp.json`
 Pour des pages derrière une connexion, ajouter `--storage-state auth.json` aux deux serveurs
 (`npx playwright codegen --save-storage=auth.json <url>`, se connecter, fermer). Ne pas versionner `auth.json`.
 
+## Suivre le travail dans le navigateur
+
+Le serveur du correcteur est lancé avec `--serve` : à son premier audit, il affiche l'adresse de l'interface (`Interface web : http://127.0.0.1:…`, sur la sortie d'erreur du serveur). La vue **Avant / après** montre, problème par problème, ce que Haiku a modifié (fichier, texte avant et après) et si le réaudit confirme la correction, la juge insuffisante ou y voit une régression. Haiku renseigne cette vue avec `consigner_modification` ; les entrées sont dans `rgaa-report/corrections.json`, que `rgaa serve` relit aussi.
+
 ## À savoir
 
 - Les deux agents partagent `rgaa-report/` et `rgaa-decisions/` : ils ne doivent pas tourner en même temps (la commande `/rgaa-boucle` les enchaîne).

@@ -22,6 +22,7 @@
         "http://localhost:3000",
         "--decide",
         "aucune",
+        "--serve",
         "--by",
         "Claude Haiku (correcteur)"
       ]

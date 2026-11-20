@@ -7,6 +7,13 @@ import { DOUBT } from '../core/answers.ts'
 import type { AuthSettings } from '../core/auth.ts'
 import { SCREENSHOT_PATH } from '../core/capture.ts'
 import { type Catalog, loadCatalog } from '../core/catalog.ts'
+import {
+  CHANGE_LIMITS,
+  ChangeError,
+  ChangeStore,
+  cleanChangeInput,
+  renderChangeVerdicts,
+} from '../core/changes.ts'
 import { DecisionStore } from '../core/decisions.ts'
 import type { CaptureMode } from '../core/runner.ts'
 import {
@@ -230,6 +237,48 @@ export const TOOLS: ToolDefinition[] = [
     annotations: { readOnlyHint: false, idempotentHint: true },
   },
   {
+    name: 'consigner_modification',
+    title: 'Consigner une modification du code',
+    description:
+      'À appeler après chaque modification du code du site faite pour corriger une non-conformité : enregistre le fichier, le texte avant et le texte après. L’interface web montre ces modifications en « avant / après » à côté de chaque problème, puis indique si le réaudit suivant confirme la correction, la juge insuffisante ou y voit une régression. N’enregistre que le passage modifié (quelques lignes), pas le fichier entier.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        test: { type: 'string', description: 'Test RGAA visé par la modification, ex. 1.1.1.' },
+        chemins: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 1,
+          maxItems: CHANGE_LIMITS.pages,
+          description: 'Pages dont la modification doit corriger le test, ex. ["/contact"].',
+        },
+        fichier: { type: 'string', description: 'Fichier modifié, ex. src/components/Hero.tsx.' },
+        avant: {
+          type: 'string',
+          description:
+            'Texte remplacé (vide pour une insertion pure). Passage exact, plusieurs lignes admises.',
+        },
+        apres: { type: 'string', description: 'Texte mis à la place (vide pour une suppression).' },
+        ligne: {
+          type: 'integer',
+          minimum: 1,
+          description: 'Numéro de la première ligne du texte avant dans le fichier (facultatif).',
+        },
+        occurrence: {
+          type: 'string',
+          description: 'Empreinte de l’occurrence visée, si lire_a_corriger la donne (facultatif).',
+        },
+        note: {
+          type: 'string',
+          description: 'Pourquoi cette modification (une phrase, facultatif).',
+        },
+      },
+      required: ['test', 'chemins', 'fichier', 'avant', 'apres'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, idempotentHint: false },
+  },
+  {
     name: 'voir_capture',
     title: 'Voir une capture',
     description:
@@ -263,6 +312,7 @@ const BASE_INSTRUCTIONS = `Audit d'accessibilité RGAA 4.1.2 (niveau AA) en vrai
 Boucle de travail : auditer_site (ou auditer_pages) → lire_a_corriger → corriger le code du site → auditer_pages sur les chemins corrigés → relire.
 Les non-conformités sont mesurées. Chacune porte, quand elle existe, une « piste de correction » de type mécanique (changement connu d'avance) ou à concevoir (choix à faire).
 Après auditer_pages, le bilan donne la différence avec le rapport précédent : ce qui est corrigé, ce qui reste, et les NOUVELLES non-conformités que la correction a introduites (à défaire ou à corriger avant d'aller plus loin).
+Après chaque modification du code, la consigner avec consigner_modification (test, pages, fichier, avant, après) : l'interface web montre alors l'avant/après de chaque problème, puis si le réaudit confirme la correction.
 Les chemins de captures (preuves/…) sont relatifs au dossier du rapport.`
 
 const DECIDE_INSTRUCTIONS: Record<DecideMode, string> = {
@@ -316,6 +366,7 @@ function summaryText(
   result?: SessionResult,
   url?: string,
   before?: ReportDocument,
+  changes?: string,
 ): string {
   const overview = siteOverview(report)
   const doc = buildToFix(report, loadCatalog())
@@ -340,6 +391,7 @@ function summaryText(
     )
   }
   if (before) lines.push('', renderDiff(diffReports(before, report)))
+  if (changes) lines.push('', changes)
   if (url) lines.push('', `Interface web en direct : ${url}`)
   lines.push(
     '',
@@ -439,6 +491,7 @@ export class RgaaTools {
     }
     if (!this.controller) this.controller = new AuditController(config, hooks)
     else this.controller.reconfigure(config)
+    this.controller.state.setMcp(true)
     if (this.options.serve && !this.server) {
       const controller = this.controller
       this.server = await startUiServer({
@@ -453,6 +506,7 @@ export class RgaaTools {
     const before = this.previousReport(config.base)
     const run = this.controller.run({
       paths,
+      before,
       onPage: (page, done, total) => context.progress(done, total, `Page ${page.path} auditée`),
     })
     this.lastRun = run
@@ -463,7 +517,15 @@ export class RgaaTools {
       )
     }
     const result = await run
-    return text(summaryText(result.report, result, this.server?.url, before))
+    return text(summaryText(result.report, result, this.server?.url, before, this.changeVerdicts()))
+  }
+
+  private changeVerdicts(): string {
+    try {
+      return renderChangeVerdicts(new ChangeStore(this.options.outDir).list())
+    } catch {
+      return ''
+    }
   }
 
   /** Rapport d'avant l'audit, pour en montrer la différence (absent s'il n'y en a pas, ou d'un autre site). */
@@ -655,6 +717,37 @@ export class RgaaTools {
         })
         return text(
           `Décision « ${answer} » enregistrée pour ${key} (${item.topic}). Relancer l’audit des pages concernées pour l’appliquer.`,
+        )
+      }
+      case 'consigner_modification': {
+        const tests = new Set(this.catalog.byTest.keys())
+        let input: ReturnType<typeof cleanChangeInput>
+        try {
+          input = cleanChangeInput(
+            {
+              test: read.string(args.test, 'test', 20).trim(),
+              pages: read
+                .stringList(args.chemins, 'chemins', CHANGE_LIMITS.pages)
+                .map((path) => path.trim()),
+              file: read.string(args.fichier, 'fichier', 2_000),
+              line: args.ligne === undefined ? undefined : read.number(args.ligne, 'ligne'),
+              before: read.string(args.avant, 'avant', 100_000),
+              after: read.string(args.apres, 'apres', 100_000),
+              occurrence: read.optionalString(args.occurrence, 'occurrence', 40),
+              note: read.optionalString(args.note, 'note', 2_000),
+              by: this.options.by,
+            },
+            tests,
+          )
+        } catch (error) {
+          if (error instanceof ChangeError) throw new ToolError(error.message)
+          throw error
+        }
+        const change = new ChangeStore(this.options.outDir).add(input)
+        this.controller?.state.setMcp(true)
+        this.controller?.state.refreshChanges()
+        return text(
+          `Modification ${change.id} consignée pour le test ${change.test} (${change.file}). Relancer auditer_pages sur ${change.pages.join(', ')} : le verdict (corrigée, persistante, régression) s'affichera dans l'interface et dans la différence du bilan.`,
         )
       }
       case 'voir_capture': {

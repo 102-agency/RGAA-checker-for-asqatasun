@@ -16,6 +16,7 @@ import { REPORT_JSON, readReport } from '../report/parse.ts'
 import { type WrittenReport, writeReport } from '../report/write.ts'
 import { containedPath } from '../security/fs.ts'
 import { safeLine } from '../security/text.ts'
+import { parseSiteUrl } from '../security/url.ts'
 import { allChecks } from '../themes/index.ts'
 
 /**
@@ -70,6 +71,25 @@ export interface SessionResult {
   catalog: Catalog
 }
 
+/** Configuration d'audit reconstituée d'après un rapport (pour relancer depuis l'interface ou le MCP). */
+export function configFromReport(
+  report: ReturnType<typeof readReport>,
+  outDir: string,
+  local: Pick<SessionConfig, 'concurrency' | 'browserLibs' | 'sandbox' | 'captures' | 'limit'>,
+): SessionConfig {
+  return {
+    ...local,
+    base: parseSiteUrl(report.meta.baseUrl),
+    paths: report.meta.pagesSource === 'arguments' ? report.pages.map((page) => page.path) : [],
+    scope: report.meta.scope,
+    outDir,
+    decisionsDir: report.meta.decisionsDir,
+    asqatasunDir: report.meta.asqatasunDir,
+    strict: report.meta.strict,
+    merge: false,
+  }
+}
+
 /** Tests statués par les vérifications inter-pages (non recalculés lors d'une fusion). */
 export const SITE_TESTS: ReadonlySet<string> = new Set(
   allChecks.filter((check) => check.kind === 'site').flatMap((check) => check.tests),
@@ -112,6 +132,11 @@ export async function runAuditSession(
   const urls = pages.source === 'arguments' ? pages.urls.slice(0, config.limit) : pages.urls
   const dropped = pages.dropped + (pages.urls.length - urls.length)
   if (urls.length === 0) throw new UserError('Aucune page à auditer.')
+  if (pages.via === 'liens') {
+    hooks.warn?.(
+      `Pas de sitemap sur ${safeLine(config.base.origin)} : pages trouvées en suivant les liens à partir de ${safeLine(config.base.pathname)} (${urls.length} page(s)). Pour en choisir d'autres, donner les chemins.`,
+    )
+  }
   hooks.onPlan?.(urls, dropped)
   hooks.log?.(
     `Audit RGAA de ${urls.length} page(s) sur ${safeLine(config.base.origin)}${

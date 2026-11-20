@@ -1,5 +1,6 @@
 import { answerLabel, answerMeaning, DOUBT, isAdmitted } from '../core/answers.ts'
 import { type Catalog, compareIds, criterionOf } from '../core/catalog.ts'
+import type { Change, ChangeStore } from '../core/changes.ts'
 import { type Decision, type DecisionStore, LIMITS } from '../core/decisions.ts'
 import type { AuditEvent } from '../core/runner.ts'
 import type { Doubt, Failure, Judgement } from '../core/types.ts'
@@ -49,6 +50,11 @@ export interface UiQuestion {
   decision?: { answer: string; label: string; reason: string; by: string; date: string }
 }
 
+/** Une modification du code faite par l'IA, avec l'exigence RGAA qu'elle visait. */
+export interface UiChange extends Change {
+  requirement: string
+}
+
 export interface UiPage {
   url: string
   path: string
@@ -58,6 +64,15 @@ export interface UiPage {
   nc: number
   av: number
   error?: string
+}
+
+/** Une thématique du RGAA : le tableau de bord y range les erreurs et mesure leur poids. */
+export interface UiTheme {
+  id: number
+  label: string
+  /** Critères et tests que le référentiel compte dans cette thématique. */
+  criteria: number
+  tests: number
 }
 
 export type RunStatus = 'en-attente' | 'en-cours' | 'termine' | 'erreur'
@@ -74,6 +89,10 @@ export interface UiSnapshot {
   /** Décisions prises depuis le dernier audit : les verdicts ne les reflètent pas encore. */
   decidedSinceAudit: number
   files: { label: string; name: string }[]
+  /** Une IA est connectée en MCP : l'interface montre ses modifications. */
+  mcp: boolean
+  /** Thématiques du référentiel, dans l'ordre : sert de repère au tableau de bord. */
+  themes: UiTheme[]
 }
 
 export type UiEvent =
@@ -82,6 +101,8 @@ export type UiEvent =
   | { type: 'question'; question: UiQuestion }
   | { type: 'page'; page: UiPage }
   | { type: 'decision'; question: UiQuestion; decidedSinceAudit: number }
+  /** Le journal des modifications de l'IA a changé : relire `/api/modifications`. */
+  | { type: 'modifications'; mcp: boolean }
   /** L'état a changé en bloc (fin d'audit, relance) : relire `/api/etat`. */
   | { type: 'recharger' }
 
@@ -119,6 +140,9 @@ export class LiveState {
   private pages = new Map<string, UiPage>()
   private decided = new Set<string>()
   private report: ReportDocument | undefined
+  private changes: ChangeStore | undefined
+  private mcp = false
+  private changesVersion = ''
   private readonly listeners = new Set<(event: UiEvent) => void>()
 
   constructor(
@@ -131,6 +155,11 @@ export class LiveState {
 
   get running(): boolean {
     return this.status === 'en-cours'
+  }
+
+  /** Avancement en deux chiffres, sans construire l'état complet (liste des audits). */
+  brief(): { status: RunStatus; message?: string; done: number; total: number } {
+    return { status: this.status, message: this.message, done: this.done, total: this.plan.length }
   }
 
   /** Change de site (serveur MCP auditant plusieurs sites) : l'état repart de zéro. */
@@ -149,6 +178,48 @@ export class LiveState {
     this.pages.clear()
     this.decided.clear()
     this.emit({ type: 'recharger' })
+  }
+
+  /** Journal des modifications de l'IA (dossier du rapport). Remplace le précédent. */
+  attachChanges(store: ChangeStore): void {
+    this.changes = store
+    this.changesVersion = store.version()
+  }
+
+  /** Une IA pilote cet audit par MCP : la partie « modifications » de l'interface est montrée. */
+  setMcp(connected: boolean): void {
+    if (this.mcp === connected) return
+    this.mcp = connected
+    this.emit({ type: 'modifications', mcp: this.isMcp })
+  }
+
+  /** Connecté en MCP, ou journal de modifications déjà présent dans le dossier du rapport. */
+  get isMcp(): boolean {
+    return this.mcp || Boolean(this.changes?.exists())
+  }
+
+  /** Modifications de l'IA, de la plus récente à la plus ancienne ; vide si le journal est illisible. */
+  uiChanges(): UiChange[] {
+    let list: Change[] = []
+    try {
+      list = this.changes?.list() ?? []
+    } catch {
+      return []
+    }
+    return list
+      .map((change) => ({
+        ...change,
+        requirement: this.catalog.byTest.get(change.test)?.title ?? '',
+      }))
+      .reverse()
+  }
+
+  /** Relit le journal s'il a changé sur le disque (autre processus) et prévient les clients. */
+  refreshChanges(): void {
+    const version = this.changes?.version() ?? ''
+    if (version === this.changesVersion) return
+    this.changesVersion = version
+    this.emit({ type: 'modifications', mcp: this.isMcp })
   }
 
   get lastReport(): ReportDocument | undefined {
@@ -474,7 +545,26 @@ export class LiveState {
       pages: Array.from(this.pages.values()),
       decidedSinceAudit: this.decided.size,
       files: this.report ? REPORT_FILES : [],
+      mcp: this.isMcp,
+      themes: this.themes(),
     }
+  }
+
+  private themes(): UiTheme[] {
+    const criteria = new Map<number, Set<string>>()
+    const tests = new Map<number, number>()
+    for (const item of this.catalog.tests) {
+      const set = criteria.get(item.theme) ?? new Set<string>()
+      set.add(item.criterion)
+      criteria.set(item.theme, set)
+      tests.set(item.theme, (tests.get(item.theme) ?? 0) + 1)
+    }
+    return Array.from(this.catalog.themes, ([id, label]) => ({
+      id,
+      label,
+      criteria: criteria.get(id)?.size ?? 0,
+      tests: tests.get(id) ?? 0,
+    })).sort((a, b) => a.id - b.id)
   }
 
   /** Pages concernées par les questions tranchées depuis l'audit (pour les réauditer). */

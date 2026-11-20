@@ -8,6 +8,7 @@ Utilisation
   rgaa pending [options]                  liste les questions de jugement en attente
   rgaa decide [<empreinte> <réponse>]     enregistre une décision (interactif sans argument)
   rgaa explain <test|critère|thématique>  explique un test du RGAA
+  rgaa web [options]                      site local : liste des audits, nouvelle analyse, suivi
   rgaa serve [options]                    interface web locale sur le dernier rapport
   rgaa mcp [options]                      serveur MCP (stdio) pour piloter l'outil depuis une IA
   rgaa --version | --help
@@ -18,6 +19,7 @@ Exemples
   rgaa audit http://localhost:3000 /contact --merge   réaudite une page après correction
   rgaa audit https://www.exemple.fr / /contact --theme 1,3 --detail tout
   rgaa audit http://localhost:3000 --asqatasun ./exports-asqatasun --strict
+  rgaa web                                        le site complet (ou : pnpm dev)
   rgaa report --page /contact
   rgaa decide
   rgaa explain 1.1.1
@@ -34,7 +36,10 @@ Codes de sortie
 export const AUDIT_HELP = `rgaa audit <url> [chemins…] [options]
 
 Audite les pages du site en vrai navigateur (Chromium) : toutes celles du
-sitemap (<url>/sitemap.xml), ou seulement les chemins donnés.
+sitemap (<url>/sitemap.xml, ou celui qu'annonce robots.txt), ou seulement les
+chemins donnés. Sans sitemap, les pages sont trouvées en suivant les liens
+internes depuis <url> (sans sortir de son chemin : https://site.fr/fr/ reste
+sous /fr), dans la limite de --limit.
 
 Périmètre
   --theme <n>            limite à une thématique (répétable, ou 1,3,10)
@@ -169,7 +174,8 @@ trancher les questions, voir les captures, puis réauditer après correction.
 L'outil n'appelle aucun modèle : le serveur ne fait que l'exposer.
 
 Outils : auditer_site, auditer_pages, etat_audit, lire_a_corriger,
-resultats_complets, trancher_question, voir_capture, expliquer_rgaa.
+resultats_complets, trancher_question, consigner_modification (avant/après de chaque
+correction, montré dans l'interface web), voir_capture, expliquer_rgaa.
 
   --sites <url>          sites autorisés (répétable, ou liste séparée par des virgules) ;
                          sans cette option, tout site http(s) peut être audité
@@ -194,4 +200,25 @@ les doutes, un « correcteur » (--decide aucune) qui applique les corrections e
 
 Exemple de déclaration (Claude Code, .mcp.json) :
   { "mcpServers": { "rgaa": { "command": "rgaa", "args": ["mcp", "--sites", "http://localhost:3000"] } } }
+`
+
+export const WEB_HELP = `rgaa web [options]
+
+Démarre le site local (127.0.0.1) : page d'accueil avec les audits déjà faits,
+regroupés par site, et le formulaire « Nouvelle analyse » ; chaque audit
+s'ouvre dans la vue détaillée (non-conformités, questions à trancher, pages,
+avant / après). Un audit lancé ici s'écrit dans <dossier>/<site>-<date>/ et
+reprend, si on le souhaite, les décisions du dernier audit du même site.
+
+Options
+  --dir <dossier>        dossier des audits (défaut : RGAA_AUDITS_DIR, sinon ./audits)
+  --port <n>             port (défaut : PORT, sinon 4747 ; un autre s'il est pris)
+  --by <nom>             auteur des décisions prises dans l'interface
+  --concurrency <n>      pages analysées en parallèle (1 à 8, défaut 2)
+  --captures <mode>      tout (défaut) | doutes | aucune : captures des zones en échec
+  --browser-libs <dir>   bibliothèques système du navigateur (RGAA_BROWSER_LIBS)
+  --no-sandbox           désactive le bac à sable de Chromium (déconseillé)
+
+Un seul audit tourne à la fois. Les anciens dossiers d'audit (\`rapport.json\`
+à plat, ou \`rapport/\` + \`decisions/\`) et ./rgaa-report sont reconnus.
 `
